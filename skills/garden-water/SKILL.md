@@ -61,7 +61,9 @@ Pick **one** change type per invocation. Bundling tag-fix + section-addition in 
 
 ### Step 5: Read the Target
 
-Read the existing note in full before drafting. You need to know:
+Read the existing note in full **using the Read tool** before drafting. The Edit tool tracks per-file Read history and will refuse to apply edits to a file that was never opened with `Read`; reading via `Bash` (`cat`, `head`, `grep` etc.) does **not** count for this tracking. So even if you already inspected the file via shell to scope the change, run `Read` on the file before the Edit step.
+
+You need to know:
 
 - Exact existing whitespace, indent, and bullet style (the Edit tool requires byte-exact match on `old_string`).
 - Whether the section you're appending to already exists, and where its boundary is (next `## ` heading or EOF).

@@ -1,0 +1,30 @@
+{
+  "name": "knowledge-gardener",
+  "description": "Format-agnostic knowledge-base curation skill for Claude Code",
+  "owner": {
+    "name": "Kohei Wada"
+  },
+  "plugins": [
+    {
+      "name": "knowledge-gardener",
+      "source": "./",
+      "description": "Format-agnostic knowledge-base curation skill. Decides WHEN to capture, update, link, or prune long-term knowledge — defers HOW (format/conventions) to the vault's own README.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Kohei Wada"
+      },
+      "homepage": "https://github.com/Kohei-Wada/knowledge-gardener",
+      "repository": "https://github.com/Kohei-Wada/knowledge-gardener",
+      "license": "MIT",
+      "keywords": [
+        "skills",
+        "knowledge-management",
+        "pkm",
+        "zettelkasten",
+        "obsidian",
+        "second-brain",
+        "long-term-memory"
+      ]
+    }
+  ]
+}

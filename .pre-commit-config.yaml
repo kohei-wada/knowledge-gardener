@@ -1,0 +1,37 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: '^(hooks/session-start|scripts/.*\.sh)$'
+
+  - repo: local
+    hooks:
+      - id: check-version-sync
+        name: versions match across package.json, plugin.json, marketplace.json
+        entry: scripts/check-version-sync.sh
+        language: script
+        pass_filenames: false
+        files: '^(package\.json|\.claude-plugin/(plugin|marketplace)\.json)$'
+
+      - id: check-skill-refs
+        name: knowledge-gardener:xxx references point to existing skills
+        entry: scripts/check-skill-refs.sh
+        language: script
+        pass_filenames: false
+        files: '\.(md|json|sh)$'
+
+      - id: check-skill-frontmatter
+        name: SKILL.md has required name + description frontmatter
+        entry: scripts/check-skill-frontmatter.sh
+        language: script
+        pass_filenames: false
+        files: '^skills/.*/SKILL\.md$'

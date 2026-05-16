@@ -48,9 +48,11 @@ Refer to this resolved path as `$KG_VAULT` for the rest of this skill.
 
 Read these files in order, stopping when you have enough information to format a note correctly:
 
-1. `$KG_VAULT/README.md` — primary convention document.
-2. Any style guide / contributing doc it explicitly points to (e.g. `CONVENTIONS.md`, `STRUCTURE.md`, `_meta/README.md`).
-3. A representative existing note (sample 1-2 from the folder you intend to write to) — to see conventions in practice.
+1. **`$KG_VAULT/README.md`** — vault-root convention document (most specific).
+2. **`$KG_VAULT/../README.md`** — parent directory README. Many vaults live as a subdirectory of a git repo (e.g. `Obsidian/vault/`); the repo-root README often holds the convention spec. Read this even if the vault-root one exists — the vault-root version overrides on conflict, but the parent fills gaps.
+3. **Folder-scoped READMEs** — if the note's target folder has its own `README.md` (e.g. `$KG_VAULT/06_People/README.md`), read it for sub-folder-specific rules.
+4. Any style guide / contributing doc the above explicitly point to (e.g. `CONVENTIONS.md`, `STRUCTURE.md`, `_meta/README.md`).
+5. A representative existing note (sample 1-2 from the folder you intend to write to) — to see conventions in practice.
 
 Extract these (don't invent any you can't find documented or modeled):
 
@@ -105,8 +107,8 @@ After approval:
 
 ## Edge Cases
 
-- **Vault README doesn't exist**: stop. Tell the user "no README found at `$KG_VAULT/README.md` — knowledge-gardener needs the vault to document its own conventions before it can write notes safely". Offer to help author a minimal README if they want.
-- **Vault README is empty / has no convention info**: same as above. Don't paper over with defaults.
+- **No README found anywhere** (`$KG_VAULT/README.md` and `$KG_VAULT/../README.md` both missing): stop. Tell the user "no README found at `$KG_VAULT/README.md` or its parent — knowledge-gardener needs the vault to document its own conventions before it can write notes safely". Offer to help author a minimal README if they want.
+- **README is empty / has no convention info**: same as above. Don't paper over with defaults.
 - **User wants to capture but vault has lint that would reject the draft**: surface the lint failure in the proposal and offer a fixed version, don't bypass.
 - **Multiple files seem like the right home** (e.g. `principles/` vs `lessons/`): ask which.
 - **Insight spans multiple atomic ideas**: propose splitting into atomic notes (per Zettelkasten norms) only if the vault README endorses atomicity. Otherwise mirror the vault's actual granularity.

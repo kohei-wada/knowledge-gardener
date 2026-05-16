@@ -42,7 +42,14 @@ Your vault MUST have a `README.md` that documents at least:
 - **Frontmatter schema** — required fields, if any
 - **Tag namespace** — any constraints
 
-If the README is missing or skips these, `garden-plant` will refuse to write and tell you what's missing. That's intentional: silent defaults are how vaults end up inconsistent.
+The README can live at either:
+
+- `$OBSIDIAN_VAULT/README.md` — vault root (most specific, wins on conflict), or
+- `$OBSIDIAN_VAULT/../README.md` — parent directory (common when the vault is a subdirectory of a git repo, e.g. `Obsidian/vault/`)
+
+`garden-plant` reads both and merges; folder-scoped READMEs (e.g. `$OBSIDIAN_VAULT/06_People/README.md`) are also consulted when relevant.
+
+If no README is found in either location, `garden-plant` will refuse to write and tell you what's missing. That's intentional: silent defaults are how vaults end up inconsistent.
 
 ## How It Works
 

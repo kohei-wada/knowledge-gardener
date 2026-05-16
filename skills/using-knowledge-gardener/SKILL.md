@@ -21,9 +21,14 @@ This plugin is **format-agnostic**. Skills MUST NOT hardcode note structure, fil
 
 Before any write/update operation, the skill MUST:
 
-1. Read `${KG_VAULT}/README.md` (and any index/style guide it points to).
+1. Locate the vault's convention document. Check both:
+   - `${KG_VAULT}/README.md` — the vault's own root
+   - `${KG_VAULT}/../README.md` — the parent (often the git repo root, when the vault is a subdirectory like `Obsidian/vault/`)
+
+   Both can exist; the vault-root one is more specific and should override the parent on any conflict.
 2. Apply the conventions documented there — folder structure, ID/filename rules, link syntax (`[[wikilink]]` vs `[md](path.md)`), frontmatter schema, tag namespace, etc.
-3. If a convention is unclear or absent, stop and ask the user rather than guess. Inventing a new convention silently is a worse failure than asking.
+3. Also consult any folder-scoped `README.md` inside the directory you're about to write into (e.g. `${KG_VAULT}/06_People/README.md`) for sub-folder-specific conventions.
+4. If a critical convention is unclear or absent, stop and ask the user rather than guess. Inventing a new convention silently is a worse failure than asking.
 
 The vault is the source of truth for "how". This plugin is the source of truth for "when".
 

@@ -76,7 +76,7 @@ grep -rli "<keyword>" "$KG_VAULT" --include='*.md' \
   --exclude-dir=98_Archive --exclude-dir=99_Templates --exclude-dir=97_Assets
 ```
 
-If something close exists, **prefer routing to `garden-water` (update) over creating a duplicate**. (`garden-water` isn't implemented yet — until then, surface the existing note to the user and ask whether to update or create separately.)
+If something close exists, **prefer routing to `garden-water` (update) over creating a duplicate** — surface the candidate to the user, then hand off to `garden-water` for the actual edit if they confirm.
 
 ### Step 4: Draft the Note
 

@@ -13,8 +13,9 @@ You have access to skills for tending the user's long-term knowledge base (the "
 |-------|----------|
 | `knowledge-gardener:garden-plant` | A reusable insight, decision, or lesson surfaced in conversation that's worth keeping — capture it as a new note |
 | `knowledge-gardener:garden-survey` | Search, list, or query the vault (by text, tag, frontmatter field, or folder) — read-only. Used directly by the user and internally by other skills as their lookup primitive |
+| `knowledge-gardener:garden-water` | Update an existing note — append content, add a link, fix a tag or frontmatter field. Minimal-diff edits, never wholesale rewrites |
 
-(More CRUD skills — `garden-water` (update), `garden-connect` (link), `garden-prune` (delete/archive) — are planned and will appear here as they ship.)
+(More CRUD skills — `garden-connect` (link), `garden-prune` (delete/archive) — are planned and will appear here as they ship.)
 
 ## The Format Contract
 
@@ -47,6 +48,15 @@ The vault is the source of truth for "how". This plugin is the source of truth f
 
 (internal — another skill needs to find existing notes before acting)
   → garden-survey
+
+"X に追記" / "<note> に Y を足して" / "tag 足して" / "update <note> with Y"
+  → garden-water
+
+(internal — garden-plant found a duplicate and is routing to update instead)
+  → garden-water
+
+(internal — garden-survey surfaced a gap like missing tag or broken MOC link)
+  → garden-water (propose the patch, ask before applying)
 ```
 
 ## The Rule

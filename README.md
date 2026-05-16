@@ -68,7 +68,7 @@ If no README is found in either location, `garden-plant` will refuse to write an
 | `using-knowledge-gardener` | Entry point — routes requests, declares the format contract |
 | `garden-plant` | **(implemented)** Capture a new durable insight as a vault note |
 | `garden-survey` | **(implemented)** Read-only search/listing primitive (text, tag, frontmatter, folder). Used directly and by other skills |
-| `garden-water` | **(planned)** Update an existing note with new info |
+| `garden-water` | **(implemented)** Update an existing note — append content, add a link, fix a tag or frontmatter field. Minimal-diff edits |
 | `garden-connect` | **(planned)** Add links between related notes |
 | `garden-prune` | **(planned)** Identify and propose deletion/archive of stale or orphan notes |
 

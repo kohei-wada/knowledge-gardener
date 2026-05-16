@@ -67,10 +67,13 @@ If a critical convention is missing or unclear, **stop and ask the user** rather
 
 ### Step 3: Check for Duplicates
 
-Before proposing a new note, search the vault for existing coverage:
+Before proposing a new note, look for existing coverage. **Prefer `garden-survey`** — it knows the vault's exclusion conventions, parses frontmatter for tags, and returns a stable structured format that's easy to act on. Pass it the candidate keywords and any obvious tag from your draft (e.g. `context/work`).
+
+Inline fallback when `garden-survey` is not available:
 
 ```bash
-grep -rli "<keyword>" "$KG_VAULT" --include='*.md'
+grep -rli "<keyword>" "$KG_VAULT" --include='*.md' \
+  --exclude-dir=98_Archive --exclude-dir=99_Templates --exclude-dir=97_Assets
 ```
 
 If something close exists, **prefer routing to `garden-water` (update) over creating a duplicate**. (`garden-water` isn't implemented yet — until then, surface the existing note to the user and ask whether to update or create separately.)

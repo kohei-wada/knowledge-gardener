@@ -12,8 +12,9 @@ You have access to skills for tending the user's long-term knowledge base (the "
 | Skill | Use When |
 |-------|----------|
 | `knowledge-gardener:garden-plant` | A reusable insight, decision, or lesson surfaced in conversation that's worth keeping — capture it as a new note |
+| `knowledge-gardener:garden-survey` | Search, list, or query the vault (by text, tag, frontmatter field, or folder) — read-only. Used directly by the user and internally by other skills as their lookup primitive |
 
-(More CRUD skills — `garden-water` (update), `garden-connect` (link), `garden-prune` (delete/archive), `garden-survey` (read/search) — are planned and will appear here as they ship.)
+(More CRUD skills — `garden-water` (update), `garden-connect` (link), `garden-prune` (delete/archive) — are planned and will appear here as they ship.)
 
 ## The Format Contract
 
@@ -40,6 +41,12 @@ The vault is the source of truth for "how". This plugin is the source of truth f
 
 "this is a generalizable insight worth keeping" (you detect it; user hasn't asked)
   → garden-plant (propose first, don't write without confirmation)
+
+"what do I have about X?" / "vault に X について書いてる？" / "list <tag> notes" / "先週の daily"
+  → garden-survey
+
+(internal — another skill needs to find existing notes before acting)
+  → garden-survey
 ```
 
 ## The Rule

@@ -5,7 +5,7 @@ description: Use when an existing MOC and an existing child note need to be link
 
 # Garden Connect (Link)
 
-Add a graph edge between a **MOC** and one or more **child notes**. Bi-directional by default. The vault's README still owns format conventions (link syntax, MOC convention); this skill only owns the decision to insert exactly one link line per touched file.
+Add a graph edge between a **MOC** and one or more **child notes**. Bi-directional by default. The vault's README still owns format conventions (link syntax, MOC convention); this skill only owns the decision to insert bare link bullets — at most one per child file, one per child in the MOC's chosen section.
 
 ## When to Use
 
@@ -78,7 +78,7 @@ Never create a Related section as part of this skill — that is `garden-water`'
 
 1. Find an existing section that holds links to MOCs. Common variants in the wild: `## 関連`, `## 🔗 Related Links`, `## Related`, `## MOC`, `## MOCs`. Match by the vault's documented convention if any.
 2. If multiple match, ask which.
-3. If none match, downgrade to uni-directional per Step 5.
+3. If none match, fall back to uni-directional (as defined in Step 5) and proceed with only the MOC side.
 
 ### Step 7: Read Every Target File With the Read Tool
 
@@ -93,7 +93,7 @@ You need to know:
 
 ### Step 8: Draft the Diff
 
-Compose only the new bullet(s) — one line per touched file. The bullet shape should:
+Compose only the new bullet(s). Each child file receives one bullet; the MOC receives one bullet per child in the batch. The bullet shape should:
 
 - Match the section's existing bullet style (e.g. `- [Display Text](path/to/file.md)` vs `* …`).
 - Use the relative path from the touched file to the linked file (no URL encoding even for spaces, per typical vault README).
@@ -129,8 +129,8 @@ Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when
 
 ### Commit Subject Examples
 
-| Operation | Subject |
-|-----------|---------|
+| Operation | Commit subject |
+|-----------|----------------|
 | Uni single (MOC → child) | `connect: ssh-MOC → ssh-key-management` |
 | Bi single | `connect: ssh-port-forwarding ↔ ssh-MOC` |
 | Batch into MOC (uni) | `connect: 4 ssh notes → ssh-MOC` |

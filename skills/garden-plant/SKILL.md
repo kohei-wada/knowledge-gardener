@@ -50,7 +50,7 @@ Read these files in order, stopping when you have enough information to format a
 
 1. **`$KG_VAULT/README.md`** — vault-root convention document (most specific).
 2. **`$KG_VAULT/../README.md`** — parent directory README. Many vaults live as a subdirectory of a git repo (e.g. `Obsidian/vault/`); the repo-root README often holds the convention spec. Read this even if the vault-root one exists — the vault-root version overrides on conflict, but the parent fills gaps.
-3. **Folder-scoped READMEs** — if the note's target folder has its own `README.md` (e.g. `$KG_VAULT/06_People/README.md`), read it for sub-folder-specific rules.
+3. **Folder-scoped READMEs** — if the note's target folder has its own `README.md` (e.g. `$KG_VAULT/<some-folder>/README.md`), read it for sub-folder-specific rules.
 4. Any style guide / contributing doc the above explicitly point to (e.g. `CONVENTIONS.md`, `STRUCTURE.md`, `_meta/README.md`).
 5. A representative existing note (sample 1-2 from the folder you intend to write to) — to see conventions in practice.
 
@@ -72,8 +72,9 @@ Before proposing a new note, look for existing coverage. **Prefer `garden-survey
 Inline fallback when `garden-survey` is not available:
 
 ```bash
+# Substitute --exclude-dir with the vault's non-content folder names (read from the README).
 grep -rli "<keyword>" "$KG_VAULT" --include='*.md' \
-  --exclude-dir=98_Archive --exclude-dir=99_Templates --exclude-dir=97_Assets
+  --exclude-dir=<archive-folder> --exclude-dir=<templates-folder> --exclude-dir=<assets-folder>
 ```
 
 If something close exists, **prefer routing to `garden-water` (update) over creating a duplicate** — surface the candidate to the user, then hand off to `garden-water` for the actual edit if they confirm.

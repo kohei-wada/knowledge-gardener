@@ -39,7 +39,7 @@ Read these (stopping when you have enough):
 Extract:
 
 - Which folders hold actual notes vs templates / assets / archives. The latter should be excluded from search by default.
-- Tag namespace conventions (e.g. `context/{work|life}`, `tool/{name}`, `category/{function}`).
+- Tag namespace conventions (whatever schema the README documents; some vaults use namespaced tags like `<namespace>/<value>`, others use flat tags).
 - Frontmatter schema (which fields are required, what `tags` looks like).
 - Filename conventions for any folder where the user might be searching.
 
@@ -60,19 +60,22 @@ If the request is ambiguous (e.g. just a bare keyword), default to **text search
 
 ### Step 4: Execute the Query
 
-Run one or more of the recipes below. Substitute the user's terms. Always exclude default-excluded folders (typically `98_Archive`, `99_Templates`, `97_Assets`) unless the request explicitly targets them.
+Run one or more of the recipes below. Substitute the user's terms. Always exclude folders the README marks as non-content (archives, templates, assets, etc.) unless the request explicitly targets them. The exact folder names vary by vault — read them from the README in Step 2 before running these recipes.
 
 #### 4a. Text Search
 
 Prefer `rg` (ripgrep) when available — much faster on large vaults — and fall back to `grep`:
 
 ```bash
-EXCLUDES=(-g '!98_Archive/**' -g '!99_Templates/**' -g '!97_Assets/**')
+# Populate EXCLUDES from the vault README's documented non-content folders.
+# Example shape — replace the placeholders with the vault's actual folder names:
+EXCLUDES=(-g '!<archive-folder>/**' -g '!<templates-folder>/**' -g '!<assets-folder>/**')
 if command -v rg >/dev/null 2>&1; then
   rg --type md -ni "<term>" "$KG_VAULT" "${EXCLUDES[@]}" | head -40
 else
+  # Substitute --exclude-dir with the vault's actual non-content folder names.
   grep -rni "<term>" "$KG_VAULT" --include='*.md' \
-    --exclude-dir=98_Archive --exclude-dir=99_Templates --exclude-dir=97_Assets \
+    --exclude-dir=<archive-folder> --exclude-dir=<templates-folder> --exclude-dir=<assets-folder> \
     | head -40
 fi
 ```
@@ -92,7 +95,8 @@ except ImportError:
     raise SystemExit("PyYAML not installed: pip install --user pyyaml")
 vault = pathlib.Path(os.environ["KG_VAULT"])
 target = os.environ["TARGET_TAG"]
-exclude = {"98_Archive", "99_Templates", "97_Assets", ".obsidian"}
+# Replace this set with the vault's documented non-content folders (read from the README).
+exclude = {"<archive-folder>", "<templates-folder>", "<assets-folder>", ".obsidian"}
 hits = []
 for f in vault.rglob("*.md"):
     if any(p in exclude for p in f.parts):
@@ -157,12 +161,14 @@ if "tags" not in fm or not fm["tags"]:
 `find` is sufficient:
 
 ```bash
+# Substitute the actual folder names from the vault's README (e.g. the daily-notes folder, the fleeting-notes folder).
+
 # Daily notes from the last 7 days
-find "$KG_VAULT/04_DailyNotes" -maxdepth 1 -name '*.md' -mtime -7 -printf '%T+ %p\n' \
+find "$KG_VAULT/<daily-folder>" -maxdepth 1 -name '*.md' -mtime -7 -printf '%T+ %p\n' \
   | sort
 
-# Fleeting notes older than 30 days (stale candidates for promote/prune)
-find "$KG_VAULT/01_FleetingNotes" -maxdepth 1 -name '*.md' -mtime +30 -printf '%T+ %p\n' \
+# Fleeting / capture notes older than 30 days (stale candidates for promote/prune)
+find "$KG_VAULT/<fleeting-folder>" -maxdepth 1 -name '*.md' -mtime +30 -printf '%T+ %p\n' \
   | sort
 ```
 

@@ -31,7 +31,7 @@ Before any write/update operation, the skill MUST:
 
    Both can exist; the vault-root one is more specific and should override the parent on any conflict.
 2. Apply the conventions documented there — folder structure, ID/filename rules, link syntax (`[[wikilink]]` vs `[md](path.md)`), frontmatter schema, tag namespace, etc.
-3. Also consult any folder-scoped `README.md` inside the directory you're about to write into (e.g. `${KG_VAULT}/06_People/README.md`) for sub-folder-specific conventions.
+3. Also consult any folder-scoped `README.md` inside the directory you're about to write into (e.g. `${KG_VAULT}/<some-folder>/README.md`) for sub-folder-specific conventions.
 4. If a critical convention is unclear or absent, stop and ask the user rather than guess. Inventing a new convention silently is a worse failure than asking.
 
 The vault is the source of truth for "how". This plugin is the source of truth for "when".

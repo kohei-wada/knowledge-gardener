@@ -35,14 +35,14 @@ Read in order:
 
 1. `$KG_VAULT/README.md` and `$KG_VAULT/../README.md` — folder layout, link syntax, frontmatter schema
 2. `$KG_VAULT/CLAUDE.md` or `$KG_VAULT/../CLAUDE.md` — operational rules (including Versioning Discipline)
-3. The daily-note template (typically `$KG_VAULT/99_Templates/daily_note_template.md` or whatever the README points to)
+3. The daily-note template — wherever the README points to it
 
 Extract:
 
-- **Daily-note folder** (e.g. `04_DailyNotes/`).
-- **Daily-note filename convention** (e.g. `YYYY-MM-DD.md`).
+- **Daily-note folder** — whatever the README names it.
+- **Daily-note filename convention** — whatever the README specifies (e.g. an ISO date, a Luhmann ID, etc.).
 - **Daily-note template** (sections, frontmatter, default tag list).
-- **Vault language** for note bodies (often Japanese — match it; the README itself may be English but notes follow their own convention).
+- **Vault language** for note bodies — whatever the existing notes use. The README may be in a different language; follow the notes, not the README.
 
 ### Step 3: Inventory the Session
 
@@ -51,10 +51,10 @@ Gather concrete facts to fill the recap. **Don't make things up — only record 
 - **Time range**: when did the session effectively start? Use the conversation start (or the user's first substantive message) and `date` for "now".
 - **Outcomes**: what was decided / built / fixed / shipped this session? One sentence each.
 - **Files touched** — concrete inventory:
-  - For each known repo (vault, ore, knowledge-gardener, supernemawashi, dotfiles), run `git log --since='<session-start>' --oneline --author='<git user>'` or `git log --since=<today-00:00> --oneline`.
+  - For each repo touched in this session (identify from the conversation), run `git log --since='<session-start>' --oneline --author='<git user>'` or `git log --since=<today-00:00> --oneline`.
   - Or `git diff --stat` if commits not yet made.
   - Aggregate as a short list with one-line descriptions.
-- **New notes planted today**: query the vault for `date: <today>` frontmatter or `git log --since=<today-00:00> --name-only -- vault/` to find newly-added notes. List them.
+- **New notes planted today**: query the vault for `date: <today>` frontmatter or `git -C "$KG_VAULT/.." log --since=<today-00:00> --name-only` to find newly-added notes. List them.
 - **Decisions / principles surfaced**: distill the conversation. Any new rules, gotchas, or trade-offs that should outlive the session.
 - **Open follow-ups**: TODOs or deferrals the user mentioned but didn't act on. State them so future-you doesn't lose the thread.
 
@@ -63,7 +63,7 @@ Cap each list to roughly the most-significant ~5 items. A recap is a summary, no
 ### Step 4: Locate Today's Daily Note
 
 - Compute today's date in the vault's filename convention (typically `YYYY-MM-DD`).
-- Build the full path: `$KG_VAULT/<daily folder>/<date>.md`.
+- Build the full path: `$KG_VAULT/<daily-folder>/<date>.<ext>` per the conventions discovered in Step 2.
 - Check existence:
   - **Exists** → this will be an **append** operation. Read the file in full (use the Read tool, not `Bash head/cat`, so the Edit tool will accept your changes later).
   - **Missing** → this will be a **new file**. Load the daily-note template content to use as scaffold.

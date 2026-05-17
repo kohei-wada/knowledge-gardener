@@ -51,7 +51,7 @@ Extract: link syntax (e.g. standard markdown `[text](path.md)` vs `[[wikilink]]`
 
 ### Step 4: Verify MOC-ness
 
-Confirm the named "MOC" is actually a MOC per the vault README's convention (any of: filename suffix like `-MOC.md`, frontmatter tag like `moc`, dedicated folder like `02_MOCs/`). If the file does not match the convention, stop and ask — do not treat an arbitrary note as a MOC, because then the operation is just a note-to-note link and belongs in `garden-water`.
+Confirm the named "MOC" is actually a MOC per the vault README's convention (which may use a filename suffix, a frontmatter tag, a dedicated folder, or any combination). If the file does not match the convention, stop and ask — do not treat an arbitrary note as a MOC, because then the operation is just a note-to-note link and belongs in `garden-water`.
 
 ### Step 5: Decide Direction
 

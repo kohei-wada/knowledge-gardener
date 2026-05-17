@@ -14,9 +14,10 @@ You have access to skills for tending the user's long-term knowledge base (the "
 | `knowledge-gardener:garden-plant` | A reusable insight, decision, or lesson surfaced in conversation that's worth keeping — capture it as a new note |
 | `knowledge-gardener:garden-survey` | Search, list, or query the vault (by text, tag, frontmatter field, or folder) — read-only. Used directly by the user and internally by other skills as their lookup primitive |
 | `knowledge-gardener:garden-water` | Update an existing note — append content, add a link, fix a tag or frontmatter field. Minimal-diff edits, never wholesale rewrites |
+| `knowledge-gardener:garden-connect` | Link an existing MOC and an existing child note (atomic graph-edge insertion, bi-directional by default) |
 | `knowledge-gardener:garden-recap` | Wrap up the current Claude Code session by writing what was worked on to today's daily note, so the next session can pick up context |
 
-(More CRUD skills — `garden-connect` (link), `garden-prune` (delete/archive) — are planned and will appear here as they ship.)
+(One more CRUD skill — `garden-prune` (delete/archive) — is planned and will appear here as it ships.)
 
 ## The Format Contract
 
@@ -58,6 +59,15 @@ The vault is the source of truth for "how". This plugin is the source of truth f
 
 (internal — garden-survey surfaced a gap like missing tag or broken MOC link)
   → garden-water (propose the patch, ask before applying)
+
+"MOC に X を追加して" / "<MOC> と <child> を link して" / "connect <child> to <MOC>"
+  → garden-connect
+
+(internal — garden-survey surfaced an orphan note that should be indexed under a MOC)
+  → garden-connect
+
+(internal — garden-plant created a child that belongs under an existing MOC)
+  → garden-connect (propose as follow-up to the new note)
 
 "ここまでまとめて daily に書いて" / "wrap up" / "今日の作業まとめて" / "recap this session"
   → garden-recap

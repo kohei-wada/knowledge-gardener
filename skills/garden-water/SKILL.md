@@ -18,7 +18,7 @@ Water existing knowledge in the user's vault — append new info, add a link, fi
 
 - A new atomic insight with no close existing note → `garden-plant`
 - Removing or archiving a note → `garden-prune` (when shipped) or manual
-- Just adding a graph edge between two existing notes that don't change otherwise → `garden-connect` (when shipped). If the link is part of a substantive content change (e.g. a new bullet under "Related Notes" that has explanatory text), prefer this skill.
+- Just adding a graph edge between an existing MOC and an existing child note → `garden-connect`. If the link is part of a substantive content change (e.g. a new bullet under "Related Notes" that has explanatory text, or a link between two non-MOC notes), prefer this skill.
 - Just searching → `garden-survey`
 - The user wants to rewrite most of the note → that's a re-plant; stop and ask whether to start over rather than turning water into a rewrite
 

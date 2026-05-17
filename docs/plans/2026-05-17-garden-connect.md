@@ -33,7 +33,7 @@
 - The 3 version files (`package.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`) MUST move together in a single commit — the `check-version-sync` hook fails otherwise.
 - Tag `v0.5.0` is applied after the version-bump commit lands and is pushed separately (`git push --tags`).
 
-**Commit order matters:** Task 1 creates the new skill directory first so that pre-commit's `check-skill-refs.sh` (which validates every `knowledge-gardener:xxx` mention against existing `skills/*/`) does not fail when Task 2 adds the cross-skill references.
+**Commit order matters:** Task 1 creates the new skill directory first so that pre-commit's `check-skill-refs.sh` (which validates every namespaced skill reference against existing `skills/*/` dirs) does not fail when Task 2 adds the cross-skill references.
 
 ---
 
@@ -228,10 +228,10 @@ pre-commit run --files skills/garden-connect/SKILL.md
 
 Expected: all hooks pass. In particular:
 - `check-skill-frontmatter`: PASS (the file has `name:` and `description:`).
-- `check-skill-refs`: PASS (the new file references `garden-water`, `garden-plant`, `garden-survey`, `garden-prune`; the first three exist as skill dirs, and `garden-prune` is referenced with `(when shipped)` qualifier as plain English, not a `knowledge-gardener:garden-prune` literal token).
+- `check-skill-refs`: PASS (the new file references `garden-water`, `garden-plant`, `garden-survey`, `garden-prune`; the first three exist as skill dirs, and `garden-prune` is referenced with `(when shipped)` qualifier as plain English without the namespace prefix).
 - `end-of-file-fixer`, `trailing-whitespace`, `check-merge-conflict`: PASS.
 
-If `check-skill-refs` fails because the SKILL.md uses the literal token `knowledge-gardener:garden-prune` anywhere, re-read the file and convert that mention to plain English (`garden-prune` without the namespace prefix), then re-stage and retry.
+If `check-skill-refs` fails on a `garden-prune` reference, re-read the SKILL.md and convert any namespaced mention to plain `garden-prune` (without the `knowledge-gardener:` prefix), then re-stage and retry.
 
 - [ ] **Step 4: Commit**
 
@@ -325,7 +325,7 @@ pre-commit run --files skills/using-knowledge-gardener/SKILL.md
 git commit -m "docs(using-kg): route garden-connect (table + routing block)"
 ```
 
-Expected: pre-commit passes (`check-skill-refs` now finds the new `knowledge-gardener:garden-connect` references and resolves them against the `skills/garden-connect/` dir created in Task 1).
+Expected: pre-commit passes (`check-skill-refs` now finds the new `garden-connect` references — both namespaced and bare forms — and resolves them against the `skills/garden-connect/` dir created in Task 1).
 
 ---
 

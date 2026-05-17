@@ -70,7 +70,7 @@ If no README is found in either location, `garden-plant` will refuse to write an
 | `garden-survey` | **(implemented)** Read-only search/listing primitive (text, tag, frontmatter, folder). Used directly and by other skills |
 | `garden-water` | **(implemented)** Update an existing note — append content, add a link, fix a tag or frontmatter field. Minimal-diff edits |
 | `garden-recap` | **(implemented)** Wrap up a session by writing what was worked on to today's daily note, so the next session can pick up context |
-| `garden-connect` | **(planned)** Add links between related notes |
+| `garden-connect` | **(implemented)** Link an existing MOC and an existing child note — atomic graph-edge insertion, bi-directional by default |
 | `garden-prune` | **(planned)** Identify and propose deletion/archive of stale or orphan notes |
 
 ### What Counts as "Durable"

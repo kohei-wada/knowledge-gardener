@@ -84,7 +84,21 @@ Use `-l` instead of `-n` if you only need the file list (faster, less context).
 
 #### 4b. Tag Search
 
-Use Python with PyYAML for robust frontmatter parsing:
+**Choose the recipe based on what the README declares about tag format.**
+
+**Recipe 1 — `rg` line regex (preferred when the README guarantees `tags:` is a YAML block list).**
+A block-list invariant means every tag occupies its own line of the form `<indent>- <tag>`. A single `rg` pass over the vault returns matches in milliseconds without parsing YAML:
+
+```bash
+# Substitute --exclude-dir / -g with the vault's documented non-content folders.
+# Substitute the indent ('  ' = 2 spaces, ' ' = 1 space, etc.) per the README.
+rg --type md -l '^<indent>- <tag>$' "$KG_VAULT" \
+  -g '!<archive-folder>/**' -g '!<templates-folder>/**' -g '!<assets-folder>/**'
+```
+
+This is ~10× faster than the YAML-parsing fallback on a several-hundred-note vault. It does NOT work for flow arrays (`tags: [a, b]`), inline hashtags, or mixed indents. If the README doesn't pin the indent or the format, fall back to Recipe 2.
+
+**Recipe 2 — Python with PyYAML (robust fallback when tag format is not declarative or is heterogeneous).**
 
 ```bash
 KG_VAULT="$KG_VAULT" TARGET_TAG="<tag>" python3 - <<'PY'
@@ -120,13 +134,6 @@ for f in vault.rglob("*.md"):
 for rel, title, tags in sorted(hits):
     print(f"{rel}\t{title}\t{','.join(map(str, tags))}")
 PY
-```
-
-Lightweight fallback (less robust — fragile on multi-line YAML and case mismatches):
-
-```bash
-# Only finds tags listed as `  - <tag>` lines anywhere in the file head
-grep -lE "^  - <tag>$" "$KG_VAULT"/**/*.md 2>/dev/null
 ```
 
 #### 4c. Frontmatter Query

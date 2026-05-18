@@ -22,9 +22,8 @@ knowledge-gardener is a Claude Code skill library (plugin) that decides **when**
 | garden-survey | Read-only search/listing primitive (text, tag, frontmatter, folder). Used directly and by other skills |
 | garden-water | Updates an existing note — append content, add a link, fix a tag or frontmatter field. Minimal-diff edits |
 | garden-connect | Links an existing MOC and an existing child note — atomic graph-edge insertion, bi-directional by default |
+| garden-prune | Removes a named note — archive by default (git mv into the vault's documented archive folder), hard-delete only on explicit request. Surfaces inbound-link warnings; link cleanup is garden-water's job |
 | garden-recap | Wraps up a session by writing what was worked on to today's daily note, so the next session can pick up context |
-
-Planned (not yet shipped): `garden-prune` (delete/archive).
 
 ## Key Conventions
 

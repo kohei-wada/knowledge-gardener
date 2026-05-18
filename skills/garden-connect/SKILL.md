@@ -18,7 +18,7 @@ Add a graph edge between a **MOC** and one or more **child notes**. Bi-direction
 - The link comes with surrounding explanatory prose (a paragraph that contains the link, not a bare bullet) → `garden-water`
 - The link is between two non-MOC notes → `garden-water`
 - The child note has no existing Related/MOC section and the user wants bi-directional → first run `garden-water` to add the section, then run this skill
-- Removing or rewriting an existing link → `garden-prune` (when shipped) for removal, `garden-water` for rewrite
+- Removing or rewriting an existing link → `garden-water` (no dedicated MOC ↔ child link-removal skill exists; use garden-water to drop the bullet, and garden-prune only when the *whole note* should go)
 - A new atomic insight with no existing note → `garden-plant`
 - Just searching → `garden-survey`
 - Semantically discovering what *should* be linked — out of scope. The caller (user or another skill) names the pair; this skill does not infer.

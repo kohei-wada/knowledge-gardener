@@ -71,7 +71,7 @@ If no README is found in either location, `garden-plant` will refuse to write an
 | `garden-water` | **(implemented)** Update an existing note — append content, add a link, fix a tag or frontmatter field. Minimal-diff edits |
 | `garden-recap` | **(implemented)** Wrap up a session by writing what was worked on to today's daily note, so the next session can pick up context |
 | `garden-connect` | **(implemented)** Link an existing MOC and an existing child note — atomic graph-edge insertion, bi-directional by default |
-| `garden-prune` | **(planned)** Identify and propose deletion/archive of stale or orphan notes |
+| `garden-prune` | **(implemented)** Remove a named note — archive by default (git mv into the vault's archive folder), hard-delete only on explicit request. Surfaces inbound-link warnings; cleanup goes through garden-water |
 
 ### What Counts as "Durable"
 

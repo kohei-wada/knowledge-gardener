@@ -15,9 +15,10 @@ You have access to skills for tending the user's long-term knowledge base (the "
 | `knowledge-gardener:garden-survey` | Search, list, or query the vault (by text, tag, frontmatter field, or folder) — read-only. Used directly by the user and internally by other skills as their lookup primitive |
 | `knowledge-gardener:garden-water` | Update an existing note — append content, add a link, fix a tag or frontmatter field. Minimal-diff edits, never wholesale rewrites |
 | `knowledge-gardener:garden-connect` | Link an existing MOC and an existing child note (atomic graph-edge insertion, bi-directional by default) |
+| `knowledge-gardener:garden-prune` | Remove an existing note — archive by default (git mv into the vault's archive folder), hard-delete only on explicit request. Surfaces inbound-link warnings; never auto-rewrites links |
 | `knowledge-gardener:garden-recap` | Wrap up the current Claude Code session by writing what was worked on to today's daily note, so the next session can pick up context |
 
-(One more CRUD skill — `garden-prune` (delete/archive) — is planned and will appear here as it ships.)
+CRUD is complete: garden-plant (C), garden-survey (R), garden-water (U), garden-prune (D). garden-connect adds the link primitive; garden-recap handles session wrap-up.
 
 ## The Format Contract
 
@@ -68,6 +69,12 @@ The vault is the source of truth for "how". This plugin is the source of truth f
 
 (internal — garden-plant created a child that belongs under an existing MOC)
   → garden-connect (propose as follow-up to the new note)
+
+"X 消して" / "X を archive して" / "archive these notes" / "X を完全に削除" / "permanently delete X"
+  → garden-prune
+
+(internal — garden-survey surfaced empty / stale / orphan notes worth removing)
+  → garden-prune (propose per target; require user confirmation; never auto-prune)
 
 "ここまでまとめて daily に書いて" / "wrap up" / "今日の作業まとめて" / "recap this session"
   → garden-recap

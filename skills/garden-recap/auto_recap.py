@@ -102,18 +102,17 @@ def read_text(path: pathlib.Path, limit: int = 20_000) -> str:
     return text
 
 
-def load_vault_context(vault: pathlib.Path) -> tuple[str, str, pathlib.Path | None]:
-    """Return (readme_excerpt, daily_template_excerpt, daily_note_folder).
+def load_vault_context(vault: pathlib.Path) -> tuple[str, str]:
+    """Return (readme_excerpt, daily_template_excerpt).
 
-    Daily folder and template paths come from explicit env vars — no hardcoded
-    folder names. Skills/garden-recap/SKILL.md and the README explain how to
-    configure these.
+    The daily-note folder and filename are not pre-resolved here — they are
+    discovered by Claude from the README inside the same prompt that composes
+    the recap block (see parse_discovery / main).
 
-    - KG_DAILY_FOLDER: required for auto-recap to write. Relative to $KG_VAULT
-      (e.g. "04_DailyNotes") or absolute. If unset or the path doesn't exist,
-      auto-recap degrades to no-op.
-    - KG_DAILY_TEMPLATE: optional. Relative to $KG_VAULT or absolute. When
-      unset, the template excerpt is "(no daily template configured)".
+    - KG_DAILY_TEMPLATE: optional env var. Relative to $KG_VAULT or absolute.
+      When unset, the template excerpt is empty and the prompt instructs
+      Claude to fall back to the README's description of the daily-note
+      structure.
     """
     readme_parts: list[str] = []
     for candidate in (vault / "README.md", vault.parent / "README.md"):
@@ -121,18 +120,13 @@ def load_vault_context(vault: pathlib.Path) -> tuple[str, str, pathlib.Path | No
             readme_parts.append(f"--- {candidate} ---\n{read_text(candidate)}")
     readme_excerpt = "\n\n".join(readme_parts) or "(no README found)"
 
-    daily_folder = _resolve_under_vault(vault, os.environ.get("KG_DAILY_FOLDER"))
-    if daily_folder is not None and not daily_folder.is_dir():
-        log(f"KG_DAILY_FOLDER does not exist: {daily_folder}")
-        daily_folder = None
-
     template_path = _resolve_under_vault(vault, os.environ.get("KG_DAILY_TEMPLATE"))
     template_excerpt = (
         read_text(template_path) if template_path and template_path.is_file()
-        else "(no daily template configured)"
+        else ""
     )
 
-    return readme_excerpt, template_excerpt, daily_folder
+    return readme_excerpt, template_excerpt
 
 
 def _resolve_under_vault(vault: pathlib.Path, raw: str | None) -> pathlib.Path | None:
@@ -175,6 +169,54 @@ def call_claude(prompt: str, timeout: int) -> str | None:
 
 
 MARKER_OPEN_RE = re.compile(r"<!--\s*kg-recap-sid:([A-Za-z0-9_-]+)\s*-->")
+_DISCOVERY_BLOCK_RE = re.compile(
+    r"<!--\s*kg-discovery\s*-->(.*?)<!--\s*/kg-discovery\s*-->",
+    re.DOTALL | re.IGNORECASE,
+)
+_DISCOVERY_LINE_RE = re.compile(r"^\s*(folder|filename|insert_before)\s*:\s*(.*?)\s*$", re.IGNORECASE)
+
+
+def parse_discovery(claude_output: str) -> dict[str, str]:
+    """Pull the kg-discovery block out of Claude's output as a dict.
+
+    Returns {} on missing/malformed block. Keys present in the returned dict
+    are exactly those Claude emitted with a non-empty value, lowercase.
+    Supported keys: 'folder', 'filename', 'insert_before'.
+    """
+    m = _DISCOVERY_BLOCK_RE.search(claude_output)
+    if not m:
+        return {}
+    out: dict[str, str] = {}
+    for raw in m.group(1).splitlines():
+        lm = _DISCOVERY_LINE_RE.match(raw)
+        if not lm:
+            continue
+        key = lm.group(1).lower()
+        val = lm.group(2).strip()
+        if val:
+            out[key] = val
+    return out
+
+
+def resolve_daily_path(vault: pathlib.Path, discovery: dict[str, str]) -> pathlib.Path | None:
+    """Resolve today's daily-note path from env override or Claude discovery.
+
+    Env precedence: KG_DAILY_FOLDER + KG_DAILY_FILENAME (if set) override
+    Claude's discovery. When env is unset, discovery values are used. When
+    neither yields a usable folder + filename, returns None (caller no-ops).
+    """
+    folder_raw = os.environ.get("KG_DAILY_FOLDER") or discovery.get("folder", "")
+    filename = (os.environ.get("KG_DAILY_FILENAME") or discovery.get("filename") or "").strip()
+    folder = _resolve_under_vault(vault, folder_raw)
+    if folder is None or not filename:
+        return None
+    if not folder.is_dir():
+        log(f"daily folder does not exist: {folder}")
+        return None
+    if "/" in filename or filename.startswith("."):
+        log(f"refusing suspicious daily filename: {filename!r}")
+        return None
+    return folder / filename
 
 
 def extract_block(claude_output: str, sid8: str) -> str | None:
@@ -187,12 +229,15 @@ def extract_block(claude_output: str, sid8: str) -> str | None:
     return claude_output[om.start(): cm.end()]
 
 
-def upsert_block(daily_path: pathlib.Path, sid8: str, block: str) -> bool:
+def upsert_block(
+    daily_path: pathlib.Path, sid8: str, block: str, insert_before: str = ""
+) -> bool:
     """Insert or replace the recap block in today's daily note. Returns True if file changed.
 
-    Insertion anchor: when env var KG_DAILY_INSERT_BEFORE is set, treat its
-    value as a literal heading and insert the new block immediately before it
-    (with a leading newline). When unset, append at EOF.
+    Insertion anchor: when `insert_before` (or env var KG_DAILY_INSERT_BEFORE
+    as override) is non-empty, treat its value as a literal heading and insert
+    the new block immediately before it (with a leading newline). When both
+    are empty, append at EOF.
     """
     existing = daily_path.read_text(encoding="utf-8") if daily_path.exists() else ""
     open_re = re.compile(rf"<!--\s*kg-recap-sid:{re.escape(sid8)}\s*-->", re.IGNORECASE)
@@ -202,7 +247,7 @@ def upsert_block(daily_path: pathlib.Path, sid8: str, block: str) -> bool:
     if om and cm and cm.start() > om.start():
         new = existing[: om.start()] + block + existing[cm.end():]
     else:
-        anchor = os.environ.get("KG_DAILY_INSERT_BEFORE", "").strip()
+        anchor = (os.environ.get("KG_DAILY_INSERT_BEFORE") or insert_before or "").strip()
         m = re.search(r"\n" + re.escape(anchor), existing) if anchor else None
         if m:
             new = existing[: m.start()] + "\n" + block + "\n" + existing[m.start():]
@@ -330,14 +375,7 @@ def main() -> None:
         emit_continue()
         return
 
-    readme, template, daily_folder = load_vault_context(vault)
-    if daily_folder is None:
-        log("no daily-note folder found")
-        emit_continue()
-        return
-
-    daily_path = daily_note_path(daily_folder)
-    existing_daily = read_text(daily_path) if daily_path.exists() else "(file does not exist yet)"
+    readme, template = load_vault_context(vault)
 
     prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_prompt.md"
     if not prompt_template_path.is_file():
@@ -346,12 +384,20 @@ def main() -> None:
         return
     prompt_template = prompt_template_path.read_text(encoding="utf-8")
 
+    # We don't know the daily path until Claude discovers it from the README,
+    # so pass an existing-daily placeholder. Claude doesn't need the prior
+    # daily content for discovery; idempotency on multiple Stop events comes
+    # from the sid-keyed marker in upsert_block, not the prompt.
+    existing_daily = "(unknown until folder is discovered)"
+
     start_hhmm = _dt.datetime.now().strftime("%H:%M")
+    today_str = _dt.date.today().isoformat()
     prompt = compose_prompt(
         prompt_template,
         {
             "SID8": sid8,
             "START_HHMM": start_hhmm,
+            "TODAY": today_str,
             "VAULT_README": readme,
             "DAILY_TEMPLATE": template,
             "EXISTING_DAILY": existing_daily,
@@ -365,13 +411,20 @@ def main() -> None:
         emit_continue()
         return
 
+    discovery = parse_discovery(out)
+    daily_path = resolve_daily_path(vault, discovery)
+    if daily_path is None:
+        log("could not resolve daily-note path (no env override and no discovery from README)")
+        emit_continue()
+        return
+
     block = extract_block(out, sid8)
     if not block:
         log("claude output missing recap markers")
         emit_continue()
         return
 
-    changed = upsert_block(daily_path, sid8, block)
+    changed = upsert_block(daily_path, sid8, block, insert_before=discovery.get("insert_before", ""))
     if not changed:
         emit_continue()
         return

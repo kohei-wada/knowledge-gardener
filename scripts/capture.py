@@ -14,6 +14,11 @@ import pathlib
 import re
 import sys
 
+# Shared path helpers live in scripts/lib/. capture.py is at scripts/capture.py,
+# so the lib dir is a sibling.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "lib"))
+from kg_paths import session_log_path  # noqa: E402
+
 ALWAYS_SKIP = frozenset({
     "Read",
     "TodoWrite",
@@ -127,15 +132,8 @@ def _bash_head(command: str) -> str:
     return s.split(None, 1)[0] if s else ""
 
 
-def _log_dir() -> pathlib.Path:
-    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
-    return pathlib.Path(base) / "knowledge-gardener" / "sessions"
-
-
 def _log_path(session_id: str) -> pathlib.Path:
-    sid8 = (session_id or "unknown")[:8] or "unknown"
-    today = _dt.date.today().isoformat()
-    return _log_dir() / f"{today}-{sid8}.log"
+    return session_log_path(session_id or "")
 
 
 def _write_line(path: pathlib.Path, line: str) -> None:

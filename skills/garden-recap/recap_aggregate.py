@@ -11,12 +11,16 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
-import os
 import pathlib
 import re
 import sys
 from collections import Counter, OrderedDict
 from typing import Iterable
+
+# Shared path helpers. recap_aggregate.py lives at skills/garden-recap/, so
+# scripts/lib/ is three parents up.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts" / "lib"))
+from kg_paths import sessions_dir  # noqa: E402
 
 LINE_RE = re.compile(
     r"^(?P<hhmm>\d{2}:\d{2})\s+"
@@ -29,13 +33,8 @@ FILE_TOOLS = frozenset({"Edit", "Write", "NotebookEdit"})
 MAX_BASH_HIGHLIGHTS = 10
 
 
-def log_dir() -> pathlib.Path:
-    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
-    return pathlib.Path(base) / "knowledge-gardener" / "sessions"
-
-
 def list_logs_for_date(date: _dt.date) -> list[pathlib.Path]:
-    d = log_dir()
+    d = sessions_dir()
     if not d.is_dir():
         return []
     return sorted(d.glob(f"{date.isoformat()}-*.log"))

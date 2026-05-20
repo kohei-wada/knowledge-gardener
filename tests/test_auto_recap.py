@@ -21,6 +21,23 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AUTO_RECAP = REPO_ROOT / "skills" / "garden-recap" / "auto_recap.py"
 
+# Neutral layout the test vault uses (created by make_vault). Names are
+# intentionally generic — knowledge-gardener is format-agnostic, so the test
+# vault must not assume any real-world vault's folder naming.
+DAILY_FOLDER_REL = "daily"
+DAILY_TEMPLATE_REL = "template.md"
+
+
+def happy_env(vault: Path, fake_claude: Path) -> dict[str, str]:
+    """Env vars needed for a happy-path auto-recap run against the test vault."""
+    return {
+        "KG_AUTO_RECAP": "1",
+        "KG_VAULT": str(vault),
+        "KG_AUTO_RECAP_CLAUDE_CMD": str(fake_claude),
+        "KG_DAILY_FOLDER": DAILY_FOLDER_REL,
+        "KG_DAILY_TEMPLATE": DAILY_TEMPLATE_REL,
+    }
+
 
 def make_fake_claude(tmp_path: Path, output: str, exit_code: int = 0, sleep: float = 0.0) -> Path:
     """Create a fake `claude` binary that ignores its args and prints `output`."""
@@ -38,28 +55,30 @@ def make_fake_claude(tmp_path: Path, output: str, exit_code: int = 0, sleep: flo
 
 
 def make_vault(tmp_path: Path) -> tuple[Path, Path, Path]:
-    """Set up a minimal vault with README + daily-notes folder + template. Returns (vault, daily_folder, repo_root)."""
+    """Set up a minimal vault with README + daily-notes folder + template. Returns (vault, daily_folder, repo_root).
+
+    Folder names here are deliberately neutral (no real-world vault layout
+    references); auto-recap learns the layout from env vars (KG_DAILY_FOLDER,
+    KG_DAILY_TEMPLATE) so it never needs to know names like '04_DailyNotes'.
+    """
     repo = tmp_path / "vault-repo"
     vault = repo / "vault"
-    daily = vault / "04_DailyNotes"
-    templates = vault / "99_Templates"
+    daily = vault / DAILY_FOLDER_REL
     repo.mkdir()
     vault.mkdir()
     daily.mkdir()
-    templates.mkdir()
     (vault / "README.md").write_text(
         textwrap.dedent(
-            """\
+            f"""\
             # Vault README
 
             ## Conventions
-            - Daily notes live in `04_DailyNotes/`, filename `YYYY-MM-DD.md`.
-            - Bodies in Japanese.
+            - Daily notes live in `{DAILY_FOLDER_REL}/`, filename `YYYY-MM-DD.md`.
             - KPT sub-sections (Keep / Problem / Try). Try must not be omitted.
             """
         )
     )
-    (templates / "daily_note_template.md").write_text(
+    (vault / DAILY_TEMPLATE_REL).write_text(
         textwrap.dedent(
             """\
             ---
@@ -185,15 +204,65 @@ def test_no_op_when_no_session_log(tmp_path):
     fake = make_fake_claude(tmp_path, CANNED_RECAP)
     res = run_hook(
         {"session_id": "testabcd-uuid"},
-        env_extra={
-            "KG_AUTO_RECAP": "1",
-            "KG_VAULT": str(vault),
-            "KG_AUTO_RECAP_CLAUDE_CMD": str(fake),
-        },
+        env_extra=happy_env(vault, fake),
         state_home=state,
     )
     assert res.returncode == 0
     assert_continue(res.stdout)
+
+
+# --- env-var format-agnostic configuration ----------------------------------
+
+def test_no_op_when_daily_folder_env_unset(tmp_path):
+    """When KG_DAILY_FOLDER is unset, auto-recap degrades to no-op."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+    fake = make_fake_claude(tmp_path, CANNED_RECAP)
+    env = happy_env(vault, fake)
+    del env["KG_DAILY_FOLDER"]
+    res = run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    assert res.returncode == 0
+    assert_continue(res.stdout)
+    today = _dt.date.today().isoformat()
+    assert not (daily / f"{today}.md").exists()
+
+
+def test_no_op_when_daily_folder_path_invalid(tmp_path):
+    """When KG_DAILY_FOLDER points at a missing path, auto-recap degrades to no-op."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+    fake = make_fake_claude(tmp_path, CANNED_RECAP)
+    env = happy_env(vault, fake)
+    env["KG_DAILY_FOLDER"] = "nonexistent-folder"
+    res = run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    assert res.returncode == 0
+    assert_continue(res.stdout)
+    today = _dt.date.today().isoformat()
+    assert not (daily / f"{today}.md").exists()
+
+
+def test_insert_before_anchor_places_block_above_heading(tmp_path):
+    """KG_DAILY_INSERT_BEFORE makes the recap block land above the named heading."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+    today = _dt.date.today().isoformat()
+    # pre-seed the daily note with a trailing section the anchor should land above
+    (daily / f"{today}.md").write_text(
+        "## Existing top\n\nsome body\n\n## Carry over\n\n- left for tomorrow\n",
+        encoding="utf-8",
+    )
+    fake = make_fake_claude(tmp_path, CANNED_RECAP)
+    env = happy_env(vault, fake)
+    env["KG_DAILY_INSERT_BEFORE"] = "## Carry over"
+    run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    content = (daily / f"{today}.md").read_text(encoding="utf-8")
+    block_idx = content.index("<!-- kg-recap-sid:testabcd -->")
+    anchor_idx = content.index("## Carry over")
+    assert block_idx < anchor_idx, "recap block should land before the anchor heading"
+    assert "left for tomorrow" in content, "anchor section content must survive"
 
 
 # --- happy path --------------------------------------------------------------
@@ -209,11 +278,7 @@ def test_writes_session_block_on_happy_path(tmp_path):
     fake = make_fake_claude(tmp_path, CANNED_RECAP)
     res = run_hook(
         {"session_id": "testabcd-uuid"},
-        env_extra={
-            "KG_AUTO_RECAP": "1",
-            "KG_VAULT": str(vault),
-            "KG_AUTO_RECAP_CLAUDE_CMD": str(fake),
-        },
+        env_extra=happy_env(vault, fake),
         state_home=state,
     )
     assert res.returncode == 0
@@ -232,11 +297,7 @@ def test_idempotent_replaces_existing_block(tmp_path):
     state = tmp_path / "state"
     write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
     fake1 = make_fake_claude(tmp_path / "v1", CANNED_RECAP)
-    env = {
-        "KG_AUTO_RECAP": "1",
-        "KG_VAULT": str(vault),
-        "KG_AUTO_RECAP_CLAUDE_CMD": str(fake1),
-    }
+    env = happy_env(vault, fake1)
     run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
 
     # second invocation with different body but same sid → should REPLACE
@@ -266,11 +327,7 @@ def test_no_op_when_claude_output_missing_markers(tmp_path):
     fake = make_fake_claude(tmp_path, "just some text, no markers")
     res = run_hook(
         {"session_id": "testabcd-uuid"},
-        env_extra={
-            "KG_AUTO_RECAP": "1",
-            "KG_VAULT": str(vault),
-            "KG_AUTO_RECAP_CLAUDE_CMD": str(fake),
-        },
+        env_extra=happy_env(vault, fake),
         state_home=state,
     )
     assert res.returncode == 0
@@ -286,11 +343,7 @@ def test_no_op_when_claude_nonzero_exit(tmp_path):
     fake = make_fake_claude(tmp_path, "", exit_code=2)
     res = run_hook(
         {"session_id": "testabcd-uuid"},
-        env_extra={
-            "KG_AUTO_RECAP": "1",
-            "KG_VAULT": str(vault),
-            "KG_AUTO_RECAP_CLAUDE_CMD": str(fake),
-        },
+        env_extra=happy_env(vault, fake),
         state_home=state,
     )
     assert res.returncode == 0
@@ -306,9 +359,7 @@ def test_no_op_when_claude_binary_missing(tmp_path):
     res = run_hook(
         {"session_id": "testabcd-uuid"},
         env_extra={
-            "KG_AUTO_RECAP": "1",
-            "KG_VAULT": str(vault),
-            "KG_AUTO_RECAP_CLAUDE_CMD": "/nonexistent/path/to/claude",
+            **happy_env(vault, Path("/nonexistent/path/to/claude")),
         },
         state_home=state,
     )
@@ -342,11 +393,7 @@ def test_debounce_skips_rapid_reinvocation(tmp_path):
     state = tmp_path / "state"
     write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
     fake = make_fake_claude(tmp_path, CANNED_RECAP)
-    env = {
-        "KG_AUTO_RECAP": "1",
-        "KG_VAULT": str(vault),
-        "KG_AUTO_RECAP_CLAUDE_CMD": str(fake),
-    }
+    env = happy_env(vault, fake)
     run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
     today = _dt.date.today().isoformat()
     first_mtime = (daily / f"{today}.md").stat().st_mtime
@@ -372,11 +419,7 @@ def test_commit_created_in_vault_repo(tmp_path):
     fake = make_fake_claude(tmp_path, CANNED_RECAP)
     run_hook(
         {"session_id": "testabcd-uuid"},
-        env_extra={
-            "KG_AUTO_RECAP": "1",
-            "KG_VAULT": str(vault),
-            "KG_AUTO_RECAP_CLAUDE_CMD": str(fake),
-        },
+        env_extra=happy_env(vault, fake),
         state_home=state,
     )
     # most-recent commit subject should match our template

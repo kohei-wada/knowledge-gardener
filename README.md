@@ -107,9 +107,14 @@ Since `v0.9.0`, `garden-recap` reads these logs via `skills/garden-recap/recap_a
 
 ```bash
 export KG_AUTO_RECAP=1
+export KG_DAILY_FOLDER='<your-daily-folder-relative-to-KG_VAULT>'   # required
+export KG_DAILY_TEMPLATE='<path/to/daily-template.md>'              # optional, relative to KG_VAULT
+export KG_DAILY_INSERT_BEFORE='## <heading the block must precede>' # optional, default = append at EOF
 ```
 
 When set, every Claude "stop" event triggers `skills/garden-recap/auto_recap.py` which spawns headless `claude -p` with the session log + vault README + daily-note template, then writes / updates today's session block in the daily note and `git commit && git push`. The block is keyed by `<sid8>` so repeated stops within one session replace in place rather than appending duplicates.
+
+These env vars are how the script stays **format-agnostic** — it never assumes folder names (`04_DailyNotes`, `DailyNotes`, etc.) or section headings. If `KG_DAILY_FOLDER` is unset or points at a missing path, auto-recap silently degrades to a no-op (the same as when the prereqs aren't met).
 
 Failure modes (no claude binary, network error, malformed Claude output, etc.) all silently degrade — the hook never blocks Claude. Diagnostics land in `~/.local/state/knowledge-gardener/auto-recap.log`.
 

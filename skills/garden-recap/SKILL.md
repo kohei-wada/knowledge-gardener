@@ -115,14 +115,14 @@ The daily-note template (loaded in Step 1) is the structure. Fill each section t
 
 ### Step 5: Propose, Don't Commit
 
-Show the user:
+Follow [Common: Propose, Don't Commit](../using-knowledge-gardener/SKILL.md#common-propose-dont-commit). For this skill, show:
 
 1. The target path (the absolute path resolved in Step 3).
 2. The **diff** (for append) or **full draft** (for new file).
-3. The change is large enough — feel free to break into "outcomes / files / learnings / follow-ups" subsections in your proposal output so the user can red-line specific parts.
+3. Feel free to break the draft into "outcomes / files / learnings / follow-ups" subsections so the user can red-line specific parts.
 4. One-line rationale: "Capturing today's session so the next one can pick up context."
 
-Ask for approval. Apply only after confirmation, unless the user explicitly said "wrap up and write it" / "ここまでまとめて書いて".
+Trigger phrases that count as implicit approval: "wrap up and write it" / "ここまでまとめて書いて".
 
 ### Step 6: Apply the Change
 
@@ -133,15 +133,11 @@ For appending, prefer anchoring on a stable section header from the template (wh
 
 ### Step 7: Lint, Commit, Push
 
-Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when present):
+Follow [Common: Lint, Commit, Push](../using-knowledge-gardener/SKILL.md#common-lint-commit-push). Commit subject for this skill depends on whether the daily note is new or appended:
 
-1. `pre-commit run --files <changed daily note>` — fix any lint or link issues. Do not bypass with `--no-verify`.
-2. `git add <changed daily note>` — only this file.
-3. Commit subject:
-   - New daily note: `plant: <date> daily (session recap)`
-   - Append to existing: `water: <date> daily session recap`
-   - `<date>` follows whatever format the daily-note filename uses (per the README).
-4. `git push`.
+- New daily note: `plant: <date> daily (session recap)`
+- Append to existing: `water: <date> daily session recap`
+- `<date>` follows whatever format the daily-note filename uses (per the README).
 
 Body of the commit message: optional one-paragraph summary of what was recapped. Keep terse.
 

@@ -49,14 +49,10 @@ Pick **one** change type per invocation. Bundling tag-fix + section-addition in 
 
 ### Step 4: Read the Target
 
-Read the existing note in full **using the Read tool** before drafting. The Edit tool tracks per-file Read history and will refuse to apply edits to a file that was never opened with `Read`; reading via `Bash` (`cat`, `head`, `grep` etc.) does **not** count for this tracking. So even if you already inspected the file via shell to scope the change, run `Read` on the file before the Edit step.
+Follow [Common: Read Every Target With the Read Tool](../using-knowledge-gardener/SKILL.md#common-read-every-target-with-the-read-tool). For this skill, additionally come away with:
 
-You need to know:
-
-- Exact existing whitespace, indent, and bullet style (the Edit tool requires byte-exact match on `old_string`).
-- Whether the section you're appending to already exists, and where its boundary is (next `## ` heading or EOF).
+- Whether the section you're appending to already exists, and where its boundary is.
 - The existing tag list (don't duplicate when adding a tag).
-- The link syntax in use (avoid mixing wikilinks with standard markdown if the README forbids).
 
 ### Step 5: Draft the Change
 
@@ -69,15 +65,13 @@ Compose **only the diff**, not the whole file. The body of the change should:
 
 ### Step 6: Propose, Don't Commit
 
-**Default: do not write directly.** Show the user:
+Follow [Common: Propose, Don't Commit](../using-knowledge-gardener/SKILL.md#common-propose-dont-commit). For this skill, show:
 
 1. The target file (absolute or `$KG_VAULT`-relative path).
 2. The **diff** — before/after of just the changed lines, not the full file.
 3. A one-line rationale: "Updating because <user request | survey gap | duplicate found via plant>."
 
-Ask for approval. Apply only after the user confirms.
-
-**Exception**: if the user explicitly said "update X" / "X に Y 足して" / "X 直して", treat that as approval. Still show the diff and path in the response so they can correct.
+Trigger phrases that count as implicit approval: "update X" / "X に Y 足して" / "X 直して".
 
 ### Step 7: Apply the Change
 
@@ -93,14 +87,9 @@ old_string: "tags:\n  - moc\n"                            # anchored at first ta
 
 Prefer the smallest unique anchor.
 
-### Step 8: Lint and Commit
+### Step 8: Lint, Commit, Push
 
-Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when present):
-
-1. `pre-commit run --files <changed file>` — fix any lint or link issues it surfaces. Do not bypass with `--no-verify`.
-2. `git add <changed file>` — stage only this file.
-3. `git commit -m "water: <short subject>"` — subject describes the affected note and what changed.
-4. `git push` to the configured remote.
+Follow [Common: Lint, Commit, Push](../using-knowledge-gardener/SKILL.md#common-lint-commit-push). Commit subject verb for this skill: `water:`. See examples below.
 
 ### Commit Subject Examples
 

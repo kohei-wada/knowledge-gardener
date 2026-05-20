@@ -75,15 +75,13 @@ Compose the note **using the conventions extracted in Step 1**. The body itself 
 
 ### Step 4: Propose, Don't Commit
 
-**Default: do not write the file directly.** Show the user:
+Follow [Common: Propose, Don't Commit](../using-knowledge-gardener/SKILL.md#common-propose-dont-commit). For this skill, show:
 
 1. The proposed path (e.g. `$KG_VAULT/principles/use-real-db-in-tests.md`).
 2. The full note content.
 3. A one-line rationale: "Capturing because this looks like a durable principle, not project-scoped."
 
-Ask for confirmation. Only write after the user approves.
-
-**Exception**: if the user explicitly said "save this to my vault" / "vault に書いといて" / "メモっといて", treat that as approval and write directly — but still show the path and content in the response so they can correct it.
+Trigger phrases that count as implicit approval: "save this to my vault" / "vault に書いといて" / "メモっといて".
 
 ### Step 5: Write and Commit (if vault is a git repo)
 

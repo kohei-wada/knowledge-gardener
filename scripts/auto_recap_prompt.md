@@ -49,7 +49,7 @@ Follow the daily-note template from the vault README. The template uses KPT (Kee
 
 1. **Facts only**. The aggregator output is your source of truth for what happened. Don't invent files, commits, or actions that aren't in the aggregator.
 2. **Inference is allowed for Keep/Problem/Try** — these are interpretations of the captured actions, not transcription. Reason about what the action pattern implies (e.g. many edits to one file → focused work; a `git push` after a release script → shipped).
-3. **No links to external services** unless they appear verbatim in the aggregator.
+3. **No links of any kind unless they appear verbatim in the aggregator output or in the existing daily note above.** Do not invent markdown link paths like `[label](some/path.md)` based on plausible inference, even if you mention a concept by name (e.g. "auto-memory", "the X note"). If a path is not literally shown in the inputs, write the concept as plain text. Inventing paths produces broken links that the vault's lychee check will reject and abort the auto-commit.
 4. **Japanese**. The vault is Japanese. Use Japanese unless the README explicitly says otherwise.
 5. **Idempotency**. The marker `<!-- kg-recap-sid:{{SID8}} -->` keys this block to one specific session. Don't include any other sid markers.
 

@@ -73,6 +73,34 @@ If no README is found in either location, `garden-plant` will refuse to write an
 | `garden-connect` | **(implemented)** Link an existing MOC and an existing child note — atomic graph-edge insertion, bi-directional by default |
 | `garden-prune` | **(implemented)** Remove a named note — archive by default (git mv into the vault's archive folder), hard-delete only on explicit request. Surfaces inbound-link warnings; cleanup goes through garden-water |
 
+### Session Capture (Phase 1)
+
+Starting in `v0.8.0`, knowledge-gardener ships a `PostToolUse` hook that records a one-line evidence entry per material tool call to:
+
+```
+$XDG_STATE_HOME/knowledge-gardener/sessions/<YYYY-MM-DD>-<sid8>.log
+```
+
+Default location: `~/.local/state/knowledge-gardener/sessions/`. Modes `0700` (dir) / `0600` (file).
+
+What gets recorded:
+
+- File-mutating tools (`Edit`, `Write`, `NotebookEdit`)
+- Non-trivial `Bash` (after stripping `cd <dir> &&` prefixes; trivial commands like `ls`, `pwd`, `cat`, `grep`, `rg`, `wc`, `sort`, `date`, etc. are filtered)
+- `Agent` dispatches (subagent type + short description)
+- `WebFetch` / `WebSearch` (URL or query)
+- MCP tool calls (`mcp__<server>__<name>` + one identifying argument)
+
+What is skipped:
+
+- Read-only tools (`Read`, `ToolSearch`, `AskUserQuestion`, …)
+- Internal task plumbing (`TodoWrite`, `TaskCreate`, `TaskUpdate`, …)
+- Trivial shell commands
+
+Privacy at the edge: `<private>...</private>` blocks and `<key>=<value>` shapes for `api_key` / `secret` / `token` / `password` / `auth` are replaced with `[REDACTED]` before any byte hits disk.
+
+The log is plugin-internal evidence for a future `garden-recap` consumer (Phase 2, `v0.9.0`). The vault is never auto-grown — only what survives `garden-recap`'s user-confirmed wrap-up gets committed there. See [`docs/specs/2026-05-18-session-capture-design.md`](docs/specs/2026-05-18-session-capture-design.md) for the full design.
+
 ### What Counts as "Durable"
 
 `garden-plant` captures things like:

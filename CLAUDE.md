@@ -19,15 +19,11 @@ knowledge-gardener is a Claude Code skill library (plugin) that decides **when**
 
 ## Skills
 
-| Skill | Purpose |
-|-------|---------|
-| using-knowledge-gardener | Entry point — routes requests to operational skills, declares variables and the format contract |
-| garden-plant | Captures a new durable insight as a vault note, using conventions read from the vault's README |
-| garden-survey | Read-only search/listing primitive (text, tag, frontmatter, folder). Used directly and by other skills |
-| garden-water | Updates an existing note — append content, add a link, fix a tag or frontmatter field. Minimal-diff edits |
-| garden-connect | Links an existing MOC and an existing child note — atomic graph-edge insertion, bi-directional by default |
-| garden-prune | Removes a named note — archive by default (git mv into the vault's documented archive folder), hard-delete only on explicit request. Surfaces inbound-link warnings; link cleanup is garden-water's job |
-| garden-recap | Wraps up a session by writing what was worked on to today's daily note, so the next session can pick up context |
+The user-facing skill list (purposes, status) lives in [README.md](README.md#skills) — see it there to avoid drift. Maintainer-relevant detail:
+
+- Entry point: `using-knowledge-gardener` (declares variables, the format contract, common workflow steps).
+- Operational skills: `garden-plant` (C), `garden-survey` (R), `garden-water` (U), `garden-prune` (D), plus `garden-connect` (link edges) and `garden-recap` (session wrap-up).
+- Each operational SKILL.md references the canonical "Pre-flight Setup" and "Common Workflow Steps" sections inside `using-knowledge-gardener` rather than duplicating them.
 
 ## Key Conventions
 

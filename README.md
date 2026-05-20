@@ -99,7 +99,23 @@ What is skipped:
 
 Privacy at the edge: `<private>...</private>` blocks and `<key>=<value>` shapes for `api_key` / `secret` / `token` / `password` / `auth` are replaced with `[REDACTED]` before any byte hits disk.
 
-Since `v0.9.0`, `garden-recap` reads these logs via `scripts/recap_aggregate.py` and uses them as the inventory source instead of relying solely on Claude's recollection. Falls back to recollection when no logs exist. The vault is never auto-grown — only what survives `garden-recap`'s user-confirmed wrap-up gets committed there. See [`docs/specs/2026-05-18-session-capture-design.md`](docs/specs/2026-05-18-session-capture-design.md) (writer / Phase 1) and [`docs/specs/2026-05-20-recap-aggregator-design.md`](docs/specs/2026-05-20-recap-aggregator-design.md) (consumer / Phase 2) for the design.
+Since `v0.9.0`, `garden-recap` reads these logs via `scripts/recap_aggregate.py` and uses them as the inventory source instead of relying solely on Claude's recollection. Falls back to recollection when no logs exist.
+
+### Auto-Recap (Phase 3, opt-in)
+
+`v0.10.0` adds a `Stop` hook that **silently writes today's session block to the daily note** with no user action. It is **opt-in via env var**:
+
+```bash
+export KG_AUTO_RECAP=1
+```
+
+When set, every Claude "stop" event triggers `scripts/auto_recap.py` which spawns headless `claude -p` with the session log + vault README + daily-note template, then writes / updates today's session block in the daily note and `git commit && git push`. The block is keyed by `<sid8>` so repeated stops within one session replace in place rather than appending duplicates.
+
+Failure modes (no claude binary, network error, malformed Claude output, etc.) all silently degrade — the hook never blocks Claude. Diagnostics land in `~/.local/state/knowledge-gardener/auto-recap.log`.
+
+Default-off so OSS installs don't surprise users with auto-commits to their vault. Single-user private vault: turn it on. Shared / public vault: leave it off and use `garden-recap` manually.
+
+Spec: [`docs/specs/2026-05-18-session-capture-design.md`](docs/specs/2026-05-18-session-capture-design.md) (writer / Phase 1), [`docs/specs/2026-05-20-recap-aggregator-design.md`](docs/specs/2026-05-20-recap-aggregator-design.md) (consumer / Phase 2), [`docs/specs/2026-05-20-auto-recap-design.md`](docs/specs/2026-05-20-auto-recap-design.md) (auto-write / Phase 3).
 
 ### What Counts as "Durable"
 

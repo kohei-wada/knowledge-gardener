@@ -8,11 +8,11 @@
 
 ## Goal
 
-Ship the **capture half** of issue #1: a `PostToolUse` hook that appends a one-line evidence entry per material tool call to `~/.local/share/knowledge-gardener/sessions/<date>-<sid>.log`. `garden-recap` itself does **not** change in this phase — it continues to recall from Claude's context. The log file is consumed in Phase 2 (v0.9.0).
+Ship the **capture half** of issue #1: a `PostToolUse` hook that appends a one-line evidence entry per material tool call to `~/.local/state/knowledge-gardener/sessions/<date>-<sid>.log`. `garden-recap` itself does **not** change in this phase — it continues to recall from Claude's context. The log file is consumed in Phase 2 (v0.9.0).
 
 ## Why split
 
-Capture is testable independently: install the plugin, run normal Claude sessions, inspect `~/.local/share/knowledge-gardener/sessions/`. No skill behavior changes, so there is zero risk of regressing existing recap UX. The runtime data from Phase 1 also informs Phase 2's filter calibration and `garden-recap` parsing format choices.
+Capture is testable independently: install the plugin, run normal Claude sessions, inspect `~/.local/state/knowledge-gardener/sessions/`. No skill behavior changes, so there is zero risk of regressing existing recap UX. The runtime data from Phase 1 also informs Phase 2's filter calibration and `garden-recap` parsing format choices.
 
 ## Scope (v0.8.0)
 
@@ -20,7 +20,7 @@ Capture is testable independently: install the plugin, run normal Claude session
 
 - `hooks/hooks.json` registers a `PostToolUse` hook with matcher `*` and a 5-second timeout.
 - `scripts/capture.py` reads the hook payload from stdin, decides whether the tool call is "material", composes a one-line entry, and appends it to a per-day per-session log file.
-- Log directory: `~/.local/share/knowledge-gardener/sessions/`. Matches the supernemawashi convention (`~/.local/share/supernemawashi/profiles/`).
+- Log directory: `~/.local/state/knowledge-gardener/sessions/` (XDG `$XDG_STATE_HOME`). Session logs are **machine-local derived state**, not user-portable data: they are non-essential enough that losing them only degrades the next recap, but persistent enough that `~/.cache` (subject to opportunistic cleanup) is too volatile. supernemawashi profiles live under `$XDG_DATA_HOME` (`~/.local/share/`) because profiles are user-curated portable knowledge — a different category from session evidence.
 - Log filename: `<YYYY-MM-DD>-<sid8>.log` where `<sid8>` is the first 8 chars of the session UUID (collision-resistant enough for a per-day basis; the full UUID is overkill for human readability and the session metadata stays accessible via the file's mtime).
 - Log entry shape (plain text, one event per line):
   - `HH:MM tool=<Tool> target=<one-line> [status=ok|err]`
@@ -50,11 +50,11 @@ Capture is testable independently: install the plugin, run normal Claude session
 ### Log path resolution
 
 ```
-~/.local/share/knowledge-gardener/sessions/<YYYY-MM-DD>-<sid8>.log
+~/.local/state/knowledge-gardener/sessions/<YYYY-MM-DD>-<sid8>.log
 ```
 
-- Base dir resolved as `${XDG_DATA_HOME:-$HOME/.local/share}/knowledge-gardener/sessions/`.
-- The script `mkdir -p`s the base dir on first write (modes `0700` for parent, `0600` for file — same posture as supernemawashi).
+- Base dir resolved as `${XDG_STATE_HOME:-$HOME/.local/state}/knowledge-gardener/sessions/`.
+- The script `mkdir -p`s the base dir on first write (modes `0700` for parent, `0600` for file).
 - `<YYYY-MM-DD>` is **local time** at write moment, not session-start time. Crossing midnight inside one Claude session naturally splits the log into two files keyed by the same `<sid8>`. This is the desired Phase 2 behavior: a "day's recap" looks at exactly today's log, no time arithmetic needed.
 - `<sid8>` = first 8 chars of `session_id` from the hook payload. If `session_id` is absent (defensive), use `unknown` so the entry still lands somewhere recoverable.
 
@@ -182,7 +182,7 @@ No skill files change. `garden-recap/SKILL.md` is left untouched — that is Pha
 - **Massive `tool_input.command`** (a multi-line heredoc, a 10 KB script): truncate to 80 chars, append `…`.
 - **Binary or non-UTF-8 content in tool_input**: Python's default str ops handle this; we only need to display, not preserve. Replace undecodable bytes with `?` during target composition.
 - **Concurrent sessions writing to the same log file**: should never happen — `<sid8>` partitions per session. If by collision two sessions land in the same file, append-mode writes are still atomic at the OS level for entries under PIPE_BUF (~4 KB), which is well above our entry size. Acceptable risk.
-- **User has `XDG_DATA_HOME` set to a non-standard path**: respected. Falls back to `~/.local/share` when unset.
+- **User has `XDG_STATE_HOME` set to a non-standard path**: respected. Falls back to `~/.local/state` when unset.
 - **Claude Code on Windows**: out of scope for v0.8.0. The script uses `os.path.expanduser` and `os.environ`, which work on Windows in principle, but no testing matrix yet. Defer to a later release.
 
 ## Privacy / safety re-statement
@@ -208,7 +208,7 @@ None for Phase 1; everything below is deferred to Phase 2.
 
 ### Phase 2 hand-off notes (for the implementer of v0.9.0)
 
-- The log file naming convention `<YYYY-MM-DD>-<sid8>.log` is the Phase 2 consumer's input. Today's log files = `~/.local/share/knowledge-gardener/sessions/$(date +%F)-*.log`.
+- The log file naming convention `<YYYY-MM-DD>-<sid8>.log` is the Phase 2 consumer's input. Today's log files = `~/.local/state/knowledge-gardener/sessions/$(date +%F)-*.log`.
 - `garden-recap` should read these as the source of truth when present and fall back to the existing recollection-based path when absent.
 - Multi-session day: each `<sid8>` produces its own log; `garden-recap` should let the user pick one or merge by `## Session HH:MM` headings per the vault README.
 - The privacy-strip pass already ran at write time; Phase 2 does not need to re-strip.

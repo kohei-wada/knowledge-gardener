@@ -107,14 +107,23 @@ Since `v0.9.0`, `garden-recap` reads these logs via `skills/garden-recap/recap_a
 
 ```bash
 export KG_AUTO_RECAP=1
-export KG_DAILY_FOLDER='<your-daily-folder-relative-to-KG_VAULT>'   # required
-export KG_DAILY_TEMPLATE='<path/to/daily-template.md>'              # optional, relative to KG_VAULT
-export KG_DAILY_INSERT_BEFORE='## <heading the block must precede>' # optional, default = append at EOF
+# Optional explicit overrides — usually NOT needed. When unset, the daily
+# folder / filename / insertion anchor are auto-discovered by Claude from
+# the vault README at each Stop event.
+export KG_DAILY_FOLDER='<folder-relative-to-KG_VAULT>'              # override discovery
+export KG_DAILY_FILENAME='<filename for today, e.g. 2026-05-21.md>'  # override discovery
+export KG_DAILY_TEMPLATE='<path/to/daily-template.md>'              # extra context for Claude's recap composition
+export KG_DAILY_INSERT_BEFORE='## <heading the block must precede>' # override discovery; default = append at EOF
 ```
 
-When set, every Claude "stop" event triggers `skills/garden-recap/auto_recap.py` which spawns headless `claude -p` with the session log + vault README + daily-note template, then writes / updates today's session block in the daily note and `git commit && git push`. The block is keyed by `<sid8>` so repeated stops within one session replace in place rather than appending duplicates.
+When set, every Claude "stop" event triggers `skills/garden-recap/auto_recap.py` which spawns headless `claude -p` with the session log + vault README. Claude returns two blocks:
 
-These env vars are how the script stays **format-agnostic** — it never assumes folder names (`04_DailyNotes`, `DailyNotes`, etc.) or section headings. If `KG_DAILY_FOLDER` is unset or points at a missing path, auto-recap silently degrades to a no-op (the same as when the prereqs aren't met).
+1. A `kg-discovery` block naming the daily folder, today's filename, and the (optional) insertion anchor — derived from what the vault README documents.
+2. The recap session block itself.
+
+The script then writes / updates today's session block in the daily note and `git commit && git push`. The block is keyed by `<sid8>` so repeated stops within one session replace in place rather than appending duplicates.
+
+This is the **format-agnostic** path: the script never assumes folder names like `04_DailyNotes` — Claude reads the vault README at every Stop event and adapts. The env-var overrides exist for users who want to skip discovery or whose README doesn't document a daily-note convention. If both discovery and env are absent, auto-recap silently degrades to a no-op (it never guesses a folder).
 
 Failure modes (no claude binary, network error, malformed Claude output, etc.) all silently degrade — the hook never blocks Claude. Diagnostics land in `~/.local/state/knowledge-gardener/auto-recap.log`.
 

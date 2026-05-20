@@ -199,7 +199,7 @@ def test_secret_pattern_redacted(tmp_path):
     payload = {
         "session_id": "testsess",
         "tool_name": "Bash",
-        "tool_input": {"command": "curl -H 'api_key=ABCDEF1234567890ABCD' https://x"},
+        "tool_input": {"command": "curl -H 'api_key=ABCDEF1234567890ABCD' https://x"},  # gitleaks:allow
     }
     stdout, _, log_dir = run_capture(payload, tmp_path=tmp_path)
     assert_continue(stdout)

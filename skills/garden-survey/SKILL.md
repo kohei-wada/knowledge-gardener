@@ -21,22 +21,11 @@ Read-only search and listing primitive for the vault. Wraps `grep` / `rg` / a YA
 
 ## Process
 
-### Step 1: Resolve Vault Path
+### Step 1: Pre-flight Setup
 
-1. Read `KG_VAULT` environment variable. If unset: stop and tell the user to set it.
-2. Verify the directory exists. If not: stop and report the missing path.
+Follow [Pre-flight Setup](../using-knowledge-gardener/SKILL.md#pre-flight-setup-shared-by-all-operational-skills) in `using-knowledge-gardener` to resolve `$KG_VAULT` and load vault conventions.
 
-Refer to this path as `$KG_VAULT` for the rest of this skill.
-
-### Step 2: Load Vault Conventions
-
-Read these (stopping when you have enough):
-
-1. `$KG_VAULT/README.md` (vault root, most specific)
-2. `$KG_VAULT/../README.md` (parent; many vaults live as a subdirectory of a git repo)
-3. `$KG_VAULT/CLAUDE.md` or `$KG_VAULT/../CLAUDE.md` if present (operational instructions)
-
-Extract:
+From the conventions, extract for this skill:
 
 - Which folders hold actual notes vs templates / assets / archives. The latter should be excluded from search by default.
 - Tag namespace conventions (whatever schema the README documents; some vaults use namespaced tags like `<namespace>/<value>`, others use flat tags).
@@ -45,7 +34,7 @@ Extract:
 
 If the vault README documents the layout differently from what you expect, **trust the README**.
 
-### Step 3: Parse the Request
+### Step 2: Parse the Request
 
 Identify query type(s). A request can combine multiple:
 
@@ -58,9 +47,9 @@ Identify query type(s). A request can combine multiple:
 
 If the request is ambiguous (e.g. just a bare keyword), default to **text search** and offer to refine ("tag や日付で絞り込む？").
 
-### Step 4: Execute the Query
+### Step 3: Execute the Query
 
-Run one or more of the recipes below. Substitute the user's terms. Always exclude folders the README marks as non-content (archives, templates, assets, etc.) unless the request explicitly targets them. The exact folder names vary by vault — read them from the README in Step 2 before running these recipes.
+Run one or more of the recipes below. Substitute the user's terms. Always exclude folders the README marks as non-content (archives, templates, assets, etc.) unless the request explicitly targets them. The exact folder names vary by vault — read them from the README in Step 1 before running these recipes.
 
 #### 4a. Text Search
 
@@ -181,7 +170,7 @@ find "$KG_VAULT/<fleeting-folder>" -maxdepth 1 -name '*.md' -mtime +30 -printf '
 
 `-mtime` is filesystem mtime — if the vault is synced via git from another machine, the timestamps may not reflect creation time. In that case, prefer parsing `date:` from frontmatter (4c).
 
-### Step 5: Format Results
+### Step 4: Format Results
 
 Per result, prefer this shape so other skills can consume it consistently:
 
@@ -194,7 +183,7 @@ Per result, prefer this shape so other skills can consume it consistently:
 
 For pure file-list outputs (when only paths matter), one path per line is fine.
 
-### Step 6: Output and Limits
+### Step 5: Output and Limits
 
 - **Default limit**: top 10 results, sorted by relevance (text-match count) or recency (newest first), depending on query type.
 - If more matched, append: `(<N> total — say "show more" or narrow the query)`.

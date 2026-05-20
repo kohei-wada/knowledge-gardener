@@ -25,35 +25,23 @@ Add a graph edge between a **MOC** and one or more **child notes**. Bi-direction
 
 ## Process
 
-### Step 1: Resolve Vault Path
+### Step 1: Pre-flight Setup
 
-1. Read `KG_VAULT` environment variable. If unset: stop and tell the user to set it.
-2. Verify the directory exists. If not: stop and report the missing path.
+Follow [Pre-flight Setup](../using-knowledge-gardener/SKILL.md#pre-flight-setup-shared-by-all-operational-skills) in `using-knowledge-gardener` to resolve `$KG_VAULT` and load vault conventions.
 
-Refer to this path as `$KG_VAULT` for the rest of this skill.
+From the conventions, extract for this skill: link syntax (e.g. standard markdown `[text](path.md)` vs `[[wikilink]]`), MOC convention (filename suffix, frontmatter tag, or folder), tag namespace, lint rules, commit conventions.
 
-### Step 2: Load Vault Conventions
-
-Read in order, stopping when you have enough:
-
-1. `$KG_VAULT/README.md` (vault-root, most specific)
-2. `$KG_VAULT/../README.md` (parent — many vaults live under a git repo)
-3. `$KG_VAULT/CLAUDE.md` or `$KG_VAULT/../CLAUDE.md` (operational instructions including Versioning Discipline)
-4. The target folder's `README.md` if it exists
-
-Extract: link syntax (e.g. standard markdown `[text](path.md)` vs `[[wikilink]]`), MOC convention (filename suffix, frontmatter tag, or folder), tag namespace, lint rules, commit conventions.
-
-### Step 3: Identify MOC and Child(ren)
+### Step 2: Identify MOC and Child(ren)
 
 - **Explicit path or filename in the request**: use it. Verify each file exists; if not, suggest `garden-plant` for the missing one.
 - **Topic only**: call `garden-survey` for candidates and ask which to use. Never silently pick.
 - **Multiple children under the same MOC** (batch): allowed in one invocation as long as the change is identical in shape per child. Heterogeneous source/target combinations must be split into separate invocations.
 
-### Step 4: Verify MOC-ness
+### Step 3: Verify MOC-ness
 
 Confirm the named "MOC" is actually a MOC per the vault README's convention (which may use a filename suffix, a frontmatter tag, a dedicated folder, or any combination). If the file does not match the convention, stop and ask — do not treat an arbitrary note as a MOC, because then the operation is just a note-to-note link and belongs in `garden-water`.
 
-### Step 5: Decide Direction
+### Step 4: Decide Direction
 
 Default: **bi-directional**. Add the link on both sides in the same commit.
 
@@ -64,7 +52,7 @@ Fall back to **uni-directional** (MOC → child only) when any of:
 
 Never create a Related section as part of this skill — that is `garden-water`'s job.
 
-### Step 6: Locate Insertion Sections
+### Step 5: Locate Insertion Sections
 
 **On the MOC side:**
 
@@ -78,9 +66,9 @@ Never create a Related section as part of this skill — that is `garden-water`'
 
 1. Find an existing section that holds links to MOCs. Common variants in the wild: `## 関連`, `## 🔗 Related Links`, `## Related`, `## MOC`, `## MOCs`. Match by the vault's documented convention if any.
 2. If multiple match, ask which.
-3. If none match, fall back to uni-directional (as defined in Step 5) and proceed with only the MOC side.
+3. If none match, fall back to uni-directional (as defined in Step 4) and proceed with only the MOC side.
 
-### Step 7: Read Every Target File With the Read Tool
+### Step 6: Read Every Target File With the Read Tool
 
 The Edit tool tracks per-file Read history and will refuse to edit a file that was never opened with `Read`. Reading via `Bash` (`cat`, `head`, `grep`) does **not** count. So even if you inspected files via shell while scoping, run `Read` on each file (MOC + every touched child) before the Edit step.
 
@@ -91,7 +79,7 @@ You need to know:
 - Whether the target link is already present (skip as no-op; do not duplicate).
 - The link syntax in use (do not mix wikilinks with standard markdown if the README forbids).
 
-### Step 8: Draft the Diff
+### Step 7: Draft the Diff
 
 Compose only the new bullet(s). Each child file receives one bullet; the MOC receives one bullet per child in the batch. The bullet shape should:
 
@@ -101,7 +89,7 @@ Compose only the new bullet(s). Each child file receives one bullet; the MOC rec
 
 Skip any side where the link already exists. Report skipped sides in the proposal so the user knows the resulting state.
 
-### Step 9: Propose, Don't Commit
+### Step 8: Propose, Don't Commit
 
 **Default: do not write directly.** Show the user:
 
@@ -114,11 +102,11 @@ Ask for approval. Apply only after the user confirms.
 
 **Exception:** an explicit "connect X to Y" / "MOC に X を追加して" request counts as approval. Still show the diff and direction in the response so the user can correct.
 
-### Step 10: Apply the Change
+### Step 9: Apply the Change
 
 Use the **Edit tool** (not Write — Edit preserves the rest of each file byte-for-byte). For each file, provide a unique `old_string` anchor. If uniqueness is fragile, include enough surrounding context to disambiguate (typically the heading line of the target section, or the adjacent bullet).
 
-### Step 11: Lint, Commit, Push
+### Step 10: Lint, Commit, Push
 
 Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when present):
 

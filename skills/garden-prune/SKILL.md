@@ -74,7 +74,7 @@ Do **not** edit any of the matches. This step is read-only; it produces a list f
 
 ### Step 6: Propose, Don't Commit
 
-**Default: do not write directly.** Show the user, per target:
+Follow [Common: Propose, Don't Commit](../using-knowledge-gardener/SKILL.md#common-propose-dont-commit). For this skill, show per target:
 
 1. Source path (absolute or `$KG_VAULT`-relative).
 2. Destination path (archive mode) or `DELETE` (hard mode).
@@ -82,9 +82,7 @@ Do **not** edit any of the matches. This step is read-only; it produces a list f
 4. The mode (archive / hard) and a one-line rationale per target ("archive because user asked", "archive because survey flagged as empty stub", "delete hard because user said `完全に削除`").
 5. The resulting commit subject.
 
-Ask for approval. Apply only after the user confirms.
-
-**Exception:** an explicit "archive X" / "X 消して" / "delete X permanently" request counts as approval for the named targets. Still show the proposal in the response so the user can correct (especially if inbound links exist — they may want to abort and clean up first).
+Trigger phrases that count as implicit approval: "archive X" / "X 消して" / "delete X permanently" — show the proposal anyway (especially when inbound links exist; user may want to abort and clean up first).
 
 ### Step 7: Apply
 
@@ -97,12 +95,11 @@ Do not stage anything else. Do not use `git add -A`.
 
 ### Step 8: Lint, Commit, Push
 
-Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when present):
+Follow [Common: Lint, Commit, Push](../using-knowledge-gardener/SKILL.md#common-lint-commit-push). Commit subject verb for this skill: `prune:`. Skill-specific notes:
 
-1. `pre-commit run --files <every changed path>` — both the old path (now-removed or now-moved) and the new path (for archive) should be passed. Do not bypass with `--no-verify`. `git mv` produces no content diff, so most lint hooks no-op.
-2. Verify `git status` shows only the intended renames or deletes.
-3. `git commit -m "prune: <subject>"` — see the table below for the subject shape. One commit covers the whole logical prune operation, even when it spans N targets in batch mode. When inbound links remain, the commit body should list them so future-you can grep for "left dangling" and route to garden-water.
-4. `git push` to the configured remote.
+- For archive mode, pass both the old and new paths to `pre-commit run --files`. `git mv` produces no content diff, so most lint hooks no-op.
+- Verify `git status` shows only the intended renames / deletes before committing.
+- One commit covers the whole logical prune operation, even in batch mode. When inbound links remain, the commit body should list them so future-you can grep for "left dangling" and route to garden-water.
 
 ### Commit Subject Examples
 

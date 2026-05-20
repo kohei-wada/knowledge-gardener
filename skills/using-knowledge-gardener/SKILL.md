@@ -53,6 +53,42 @@ If a critical convention is unclear or absent, **stop and ask the user** rather 
 
 What each skill needs to **extract** from the conventions (link syntax, frontmatter schema, archive folder, daily-note template, etc.) is skill-specific and listed at the top of the skill's process.
 
+## Common Workflow Steps (shared by write skills)
+
+Three workflow steps appear in every operational skill that mutates the vault. They are defined **once here** and referenced from each skill instead of being copied.
+
+### Common: Read Every Target With the Read Tool
+
+Before drafting any change, run the **Read tool** on every file you intend to Edit. The Edit tool tracks per-file Read history and will refuse to apply edits to a file that was never opened via Read; reading via Bash (`cat`, `head`, `grep`, etc.) does **not** count toward this tracking. Even if you already inspected the file in shell to scope the change, run Read on it before the Edit step.
+
+What you need to come away with: exact existing whitespace, indent, and bullet style (Edit requires byte-exact match on `old_string`); section boundaries (next `## ` heading or EOF); the link syntax in use; and whether the change you're about to propose is already present (skip as no-op).
+
+The skill's own "Read" step lists any skill-specific items beyond this baseline.
+
+### Common: Propose, Don't Commit
+
+**Default: do not write directly.** Show the user:
+
+1. The target path(s) (absolute or `$KG_VAULT`-relative).
+2. The full content (new file) or **diff** (edit), as appropriate.
+3. A one-line rationale for the change.
+4. Skill-specific extras as listed in the skill's own Propose step (e.g. direction for `garden-connect`, inbound-link list for `garden-prune`).
+
+Ask for approval. Apply only after the user confirms.
+
+**Exception**: if the user used an explicit trigger phrase ("save this to my vault", "X に Y 足して", "archive X", etc.), treat that as approval — but still show the proposal in the response so they can correct.
+
+### Common: Lint, Commit, Push
+
+Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when present):
+
+1. `pre-commit run --files <every changed file>` — fix any lint or link issues. **Do not bypass with `--no-verify`.**
+2. `git add <every changed file>` — stage only the touched files.
+3. `git commit -m "<verb>: <subject>"` — one commit per logical operation. The verb (`plant` / `water` / `connect` / `prune`) and subject shape come from the skill's own Commit Subject Examples table.
+4. `git push` to the configured remote.
+
+If the vault is not a git repo (`$KG_VAULT/.git` absent), skip the lint/commit/push and warn the user that history is not preserved.
+
 ## Skill Routing
 
 ```

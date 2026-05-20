@@ -70,14 +70,7 @@ Never create a Related section as part of this skill — that is `garden-water`'
 
 ### Step 6: Read Every Target File With the Read Tool
 
-The Edit tool tracks per-file Read history and will refuse to edit a file that was never opened with `Read`. Reading via `Bash` (`cat`, `head`, `grep`) does **not** count. So even if you inspected files via shell while scoping, run `Read` on each file (MOC + every touched child) before the Edit step.
-
-You need to know:
-
-- Exact existing whitespace, indent, and bullet style. The Edit tool requires byte-exact matches on `old_string`.
-- The boundary of the chosen section (the next `## ` heading or EOF) so the new bullet lands inside it.
-- Whether the target link is already present (skip as no-op; do not duplicate).
-- The link syntax in use (do not mix wikilinks with standard markdown if the README forbids).
+Follow [Common: Read Every Target With the Read Tool](../using-knowledge-gardener/SKILL.md#common-read-every-target-with-the-read-tool). Run Read on every file (MOC + every touched child) before the Edit step.
 
 ### Step 7: Draft the Diff
 
@@ -91,16 +84,14 @@ Skip any side where the link already exists. Report skipped sides in the proposa
 
 ### Step 8: Propose, Don't Commit
 
-**Default: do not write directly.** Show the user:
+Follow [Common: Propose, Don't Commit](../using-knowledge-gardener/SKILL.md#common-propose-dont-commit). For this skill, show:
 
 1. Each target file (absolute or `$KG_VAULT`-relative path).
 2. The per-file **diff** — before/after of just the affected lines.
 3. The direction (uni or bi) and a one-line rationale: "connect <child> ↔ <MOC>" or "connect N children ↔ <MOC>".
 4. Any sides skipped because the link was already present.
 
-Ask for approval. Apply only after the user confirms.
-
-**Exception:** an explicit "connect X to Y" / "MOC に X を追加して" request counts as approval. Still show the diff and direction in the response so the user can correct.
+Trigger phrases that count as implicit approval: "connect X to Y" / "MOC に X を追加して".
 
 ### Step 9: Apply the Change
 
@@ -108,12 +99,7 @@ Use the **Edit tool** (not Write — Edit preserves the rest of each file byte-f
 
 ### Step 10: Lint, Commit, Push
 
-Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when present):
-
-1. `pre-commit run --files <every changed file>` — fix any lint or link issues. Do not bypass with `--no-verify`.
-2. `git add <every changed file>` — stage only the touched files.
-3. `git commit -m "connect: <subject>"` — see the table below for the subject shape. One commit covers the whole logical link operation, even when it spans the MOC + multiple children.
-4. `git push` to the configured remote.
+Follow [Common: Lint, Commit, Push](../using-knowledge-gardener/SKILL.md#common-lint-commit-push). Commit subject verb for this skill: `connect:`. One commit covers the whole logical link operation, even when it spans the MOC + multiple children. See examples below.
 
 ### Commit Subject Examples
 

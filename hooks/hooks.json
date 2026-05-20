@@ -30,7 +30,8 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/garden-recap/auto_recap.py\"",
-            "timeout": 180
+            "timeout": 180,
+            "async": true
           }
         ]
       }

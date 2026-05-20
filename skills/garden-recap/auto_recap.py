@@ -19,6 +19,12 @@ import sys
 import time
 import traceback
 
+# Shared path helpers. auto_recap.py lives at skills/garden-recap/, so
+# scripts/lib/ is three parents up.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts" / "lib"))
+from kg_paths import debounce_marker as _shared_debounce_marker  # noqa: E402
+from kg_paths import kg_state_dir, session_log_path as _shared_session_log_path  # noqa: E402
+
 DEFAULT_TIMEOUT = 180
 DEBOUNCE_SECONDS = 60
 LOG_FILE = pathlib.Path.home() / ".local" / "state" / "knowledge-gardener" / "auto-recap.log"
@@ -39,18 +45,12 @@ def log(line: str) -> None:
         pass
 
 
-def state_home() -> pathlib.Path:
-    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
-    return pathlib.Path(base)
-
-
 def session_log_path(sid8: str, date: _dt.date | None = None) -> pathlib.Path:
-    d = date or _dt.date.today()
-    return state_home() / "knowledge-gardener" / "sessions" / f"{d.isoformat()}-{sid8}.log"
+    return _shared_session_log_path(sid8, date)
 
 
 def debounce_marker(sid8: str) -> pathlib.Path:
-    return state_home() / "knowledge-gardener" / "sessions" / f".last-recap-{sid8}"
+    return _shared_debounce_marker(sid8)
 
 
 def plugin_root() -> pathlib.Path:

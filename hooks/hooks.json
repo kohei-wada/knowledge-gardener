@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/capture.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/garden-recap/capture.py\"",
             "timeout": 5
           }
         ]

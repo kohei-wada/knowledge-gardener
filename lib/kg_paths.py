@@ -1,7 +1,7 @@
 """Shared path helpers for knowledge-gardener machine-local state.
 
 Used by:
-- scripts/capture.py (PostToolUse hook — writes session log entries)
+- skills/garden-recap/capture.py (PostToolUse hook — writes session log entries)
 - skills/garden-recap/recap_aggregate.py (reads session logs)
 - skills/garden-recap/auto_recap.py (reads session log, writes debounce marker)
 

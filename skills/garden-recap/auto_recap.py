@@ -19,9 +19,9 @@ import sys
 import time
 import traceback
 
-# Shared path helpers. auto_recap.py lives at skills/garden-recap/, so
-# scripts/lib/ is three parents up.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts" / "lib"))
+# Shared path helpers. auto_recap.py lives at skills/garden-recap/, so the
+# repo-root lib/ is two parents up.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
 from kg_paths import debounce_marker as _shared_debounce_marker  # noqa: E402
 from kg_paths import kg_state_dir, session_log_path as _shared_session_log_path  # noqa: E402
 

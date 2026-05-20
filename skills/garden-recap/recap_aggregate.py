@@ -17,9 +17,9 @@ import sys
 from collections import Counter, OrderedDict
 from typing import Iterable
 
-# Shared path helpers. recap_aggregate.py lives at skills/garden-recap/, so
-# scripts/lib/ is three parents up.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts" / "lib"))
+# Shared path helpers. recap_aggregate.py lives at skills/garden-recap/, so the
+# repo-root lib/ is two parents up.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
 from kg_paths import sessions_dir  # noqa: E402
 
 LINE_RE = re.compile(

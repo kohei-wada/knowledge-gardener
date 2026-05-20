@@ -103,34 +103,44 @@ def read_text(path: pathlib.Path, limit: int = 20_000) -> str:
 
 
 def load_vault_context(vault: pathlib.Path) -> tuple[str, str, pathlib.Path | None]:
-    """Return (readme_excerpt, daily_template_excerpt, daily_note_folder)."""
+    """Return (readme_excerpt, daily_template_excerpt, daily_note_folder).
+
+    Daily folder and template paths come from explicit env vars — no hardcoded
+    folder names. Skills/garden-recap/SKILL.md and the README explain how to
+    configure these.
+
+    - KG_DAILY_FOLDER: required for auto-recap to write. Relative to $KG_VAULT
+      (e.g. "04_DailyNotes") or absolute. If unset or the path doesn't exist,
+      auto-recap degrades to no-op.
+    - KG_DAILY_TEMPLATE: optional. Relative to $KG_VAULT or absolute. When
+      unset, the template excerpt is "(no daily template configured)".
+    """
     readme_parts: list[str] = []
     for candidate in (vault / "README.md", vault.parent / "README.md"):
         if candidate.is_file():
             readme_parts.append(f"--- {candidate} ---\n{read_text(candidate)}")
     readme_excerpt = "\n\n".join(readme_parts) or "(no README found)"
 
-    # Try to locate a daily-note template + folder by common conventions.
-    daily_folder = None
-    for name in ("04_DailyNotes", "DailyNotes", "daily", "Daily"):
-        cand = vault / name
-        if cand.is_dir():
-            daily_folder = cand
-            break
+    daily_folder = _resolve_under_vault(vault, os.environ.get("KG_DAILY_FOLDER"))
+    if daily_folder is not None and not daily_folder.is_dir():
+        log(f"KG_DAILY_FOLDER does not exist: {daily_folder}")
+        daily_folder = None
 
-    template_path = None
-    for name in (
-        "99_Templates/daily_note_template.md",
-        "Templates/daily_note_template.md",
-        "templates/daily.md",
-    ):
-        cand = vault / name
-        if cand.is_file():
-            template_path = cand
-            break
-    template_excerpt = read_text(template_path) if template_path else "(no daily template found)"
+    template_path = _resolve_under_vault(vault, os.environ.get("KG_DAILY_TEMPLATE"))
+    template_excerpt = (
+        read_text(template_path) if template_path and template_path.is_file()
+        else "(no daily template configured)"
+    )
 
     return readme_excerpt, template_excerpt, daily_folder
+
+
+def _resolve_under_vault(vault: pathlib.Path, raw: str | None) -> pathlib.Path | None:
+    """Resolve a env-var path. Empty/None → None. Absolute → as-is. Relative → under vault."""
+    if not raw:
+        return None
+    p = pathlib.Path(raw).expanduser()
+    return p if p.is_absolute() else vault / p
 
 
 def daily_note_path(daily_folder: pathlib.Path) -> pathlib.Path:
@@ -178,7 +188,12 @@ def extract_block(claude_output: str, sid8: str) -> str | None:
 
 
 def upsert_block(daily_path: pathlib.Path, sid8: str, block: str) -> bool:
-    """Insert or replace the recap block in today's daily note. Returns True if file changed."""
+    """Insert or replace the recap block in today's daily note. Returns True if file changed.
+
+    Insertion anchor: when env var KG_DAILY_INSERT_BEFORE is set, treat its
+    value as a literal heading and insert the new block immediately before it
+    (with a leading newline). When unset, append at EOF.
+    """
     existing = daily_path.read_text(encoding="utf-8") if daily_path.exists() else ""
     open_re = re.compile(rf"<!--\s*kg-recap-sid:{re.escape(sid8)}\s*-->", re.IGNORECASE)
     close_re = re.compile(rf"<!--\s*/kg-recap-sid:{re.escape(sid8)}\s*-->", re.IGNORECASE)
@@ -187,9 +202,8 @@ def upsert_block(daily_path: pathlib.Path, sid8: str, block: str) -> bool:
     if om and cm and cm.start() > om.start():
         new = existing[: om.start()] + block + existing[cm.end():]
     else:
-        # append before any trailing "Try のキャリーオーバー" or just at end
-        anchor_re = re.compile(r"\n## Try のキャリーオーバー", re.IGNORECASE)
-        m = anchor_re.search(existing)
+        anchor = os.environ.get("KG_DAILY_INSERT_BEFORE", "").strip()
+        m = re.search(r"\n" + re.escape(anchor), existing) if anchor else None
         if m:
             new = existing[: m.start()] + "\n" + block + "\n" + existing[m.start():]
         else:

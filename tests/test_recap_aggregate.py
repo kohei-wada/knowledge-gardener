@@ -1,4 +1,4 @@
-"""Tests for scripts/recap_aggregate.py."""
+"""Tests for skills/garden-recap/recap_aggregate.py."""
 from __future__ import annotations
 
 import datetime as _dt
@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / "scripts" / "recap_aggregate.py"
+SCRIPT = REPO_ROOT / "skills" / "garden-recap" / "recap_aggregate.py"
 
 
 def run(args: list[str], *, state_home: Path) -> subprocess.CompletedProcess[str]:

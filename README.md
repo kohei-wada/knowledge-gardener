@@ -99,7 +99,7 @@ What is skipped:
 
 Privacy at the edge: `<private>...</private>` blocks and `<key>=<value>` shapes for `api_key` / `secret` / `token` / `password` / `auth` are replaced with `[REDACTED]` before any byte hits disk.
 
-Since `v0.9.0`, `garden-recap` reads these logs via `scripts/recap_aggregate.py` and uses them as the inventory source instead of relying solely on Claude's recollection. Falls back to recollection when no logs exist.
+Since `v0.9.0`, `garden-recap` reads these logs via `skills/garden-recap/recap_aggregate.py` and uses them as the inventory source instead of relying solely on Claude's recollection. Falls back to recollection when no logs exist.
 
 ### Auto-Recap (Phase 3, opt-in)
 
@@ -109,7 +109,7 @@ Since `v0.9.0`, `garden-recap` reads these logs via `scripts/recap_aggregate.py`
 export KG_AUTO_RECAP=1
 ```
 
-When set, every Claude "stop" event triggers `scripts/auto_recap.py` which spawns headless `claude -p` with the session log + vault README + daily-note template, then writes / updates today's session block in the daily note and `git commit && git push`. The block is keyed by `<sid8>` so repeated stops within one session replace in place rather than appending duplicates.
+When set, every Claude "stop" event triggers `skills/garden-recap/auto_recap.py` which spawns headless `claude -p` with the session log + vault README + daily-note template, then writes / updates today's session block in the daily note and `git commit && git push`. The block is keyed by `<sid8>` so repeated stops within one session replace in place rather than appending duplicates.
 
 Failure modes (no claude binary, network error, malformed Claude output, etc.) all silently degrade — the hook never blocks Claude. Diagnostics land in `~/.local/state/knowledge-gardener/auto-recap.log`.
 

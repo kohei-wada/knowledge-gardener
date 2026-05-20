@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/auto_recap.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/garden-recap/auto_recap.py\"",
             "timeout": 180
           }
         ]

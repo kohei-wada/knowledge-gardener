@@ -57,7 +57,7 @@ Gather concrete facts to fill the recap. **Don't make things up — only record 
 Since `v0.8.0`, a `PostToolUse` hook captures one log line per material tool call to `$XDG_STATE_HOME/knowledge-gardener/sessions/<YYYY-MM-DD>-<sid8>.log`. `v0.9.0` adds an aggregator script that turns those raw lines into a recap-ready summary.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/recap_aggregate.py"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/garden-recap/recap_aggregate.py"
 ```
 
 By default it picks the most-recently-modified session log for today (≈ the active session). Useful flags:

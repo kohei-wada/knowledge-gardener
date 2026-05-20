@@ -5,7 +5,7 @@ See docs/specs/2026-05-20-recap-aggregator-design.md for the design rationale.
 Plain stdlib only. Read-only: never writes back to the log dir.
 
 Usage:
-    scripts/recap_aggregate.py [--date YYYY-MM-DD] [--sid SID8] [--all]
+    skills/garden-recap/recap_aggregate.py [--date YYYY-MM-DD] [--sid SID8] [--all]
 """
 from __future__ import annotations
 

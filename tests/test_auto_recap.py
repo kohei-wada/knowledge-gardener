@@ -1,4 +1,4 @@
-"""Subprocess-based tests for scripts/auto_recap.py.
+"""Subprocess-based tests for skills/garden-recap/auto_recap.py.
 
 These tests mock the headless `claude` binary via $KG_AUTO_RECAP_CLAUDE_CMD,
 pointing it at a small shell script that prints a canned recap block. The
@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-AUTO_RECAP = REPO_ROOT / "scripts" / "auto_recap.py"
+AUTO_RECAP = REPO_ROOT / "skills" / "garden-recap" / "auto_recap.py"
 
 
 def make_fake_claude(tmp_path: Path, output: str, exit_code: int = 0, sleep: float = 0.0) -> Path:

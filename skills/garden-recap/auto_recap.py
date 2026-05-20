@@ -57,7 +57,8 @@ def plugin_root() -> pathlib.Path:
     env = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if env:
         return pathlib.Path(env)
-    return pathlib.Path(__file__).resolve().parent.parent
+    # auto_recap.py lives at <plugin_root>/skills/garden-recap/auto_recap.py
+    return pathlib.Path(__file__).resolve().parents[2]
 
 
 def vault_root() -> pathlib.Path | None:
@@ -69,7 +70,7 @@ def vault_root() -> pathlib.Path | None:
 
 
 def run_aggregator(sid8: str) -> str | None:
-    script = plugin_root() / "scripts" / "recap_aggregate.py"
+    script = plugin_root() / "skills" / "garden-recap" / "recap_aggregate.py"
     if not script.is_file():
         return None
     try:
@@ -324,7 +325,7 @@ def main() -> None:
     daily_path = daily_note_path(daily_folder)
     existing_daily = read_text(daily_path) if daily_path.exists() else "(file does not exist yet)"
 
-    prompt_template_path = plugin_root() / "scripts" / "auto_recap_prompt.md"
+    prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_prompt.md"
     if not prompt_template_path.is_file():
         log("prompt template missing")
         emit_continue()

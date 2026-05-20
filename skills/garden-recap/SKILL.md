@@ -24,7 +24,7 @@ Capture the current session's work — outcomes, files touched, decisions, follo
 
 ### Step 1: Resolve Vault Path
 
-1. Read `OBSIDIAN_VAULT`. Stop and ask if unset.
+1. Read `KG_VAULT`. Stop and ask if unset.
 2. Verify directory exists.
 
 Refer to it as `$KG_VAULT`.

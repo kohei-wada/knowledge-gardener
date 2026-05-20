@@ -55,7 +55,7 @@ This scope cut keeps garden-connect a true graph-edge primitive — single-purpo
 
 ## Process (mirrors garden-water shape)
 
-1. **Resolve vault path** — `OBSIDIAN_VAULT`, fail loud if unset.
+1. **Resolve vault path** — `KG_VAULT`, fail loud if unset.
 2. **Load vault conventions** — `$KG_VAULT/README.md`, parent `README.md`, `CLAUDE.md`, and the target folder's `README.md` if present. Extract link syntax, frontmatter schema, MOC convention (filename, tag, or folder), Versioning Discipline.
 3. **Identify MOC and child(ren)** — explicit path or filename preferred. If only a topic is given, call garden-survey for candidates and ask which.
 4. **Detect MOC-ness** — by README convention (e.g. `tags: [moc]`, filename suffix `-MOC.md`, or `02_MOCs/` folder). If the named "MOC" is not actually a MOC per the README, stop and ask.

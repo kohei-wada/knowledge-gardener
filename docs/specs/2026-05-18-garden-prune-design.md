@@ -70,7 +70,7 @@ Composing them keeps each skill single-purpose. The user's typical phrasing for 
 
 ## Process (mirrors garden-connect shape)
 
-1. **Resolve vault path** — `OBSIDIAN_VAULT`, fail loud if unset.
+1. **Resolve vault path** — `KG_VAULT`, fail loud if unset.
 2. **Load vault conventions** — `$KG_VAULT/README.md`, parent `README.md`, `CLAUDE.md`, target folder's `README.md` if present. Extract link syntax, archive folder name, Versioning Discipline.
 3. **Identify target note(s)** — explicit path or filename preferred. If only a topic is given, call garden-survey for candidates and ask which.
 4. **Verify each target exists** — if not, stop and report. Do not silently treat a missing target as a no-op.

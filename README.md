@@ -27,7 +27,7 @@ Inside Claude Code:
 Set the vault path in your shell:
 
 ```bash
-export OBSIDIAN_VAULT=~/path/to/your/vault
+export KG_VAULT=~/path/to/your/vault
 ```
 
 Restart your Claude Code session.
@@ -44,10 +44,10 @@ Your vault MUST have a `README.md` that documents at least:
 
 The README can live at either:
 
-- `$OBSIDIAN_VAULT/README.md` — vault root (most specific, wins on conflict), or
-- `$OBSIDIAN_VAULT/../README.md` — parent directory (common when the vault is a subdirectory of a git repo, e.g. `Obsidian/vault/`)
+- `$KG_VAULT/README.md` — vault root (most specific, wins on conflict), or
+- `$KG_VAULT/../README.md` — parent directory (common when the vault is a subdirectory of a git repo, e.g. `Obsidian/vault/`)
 
-`garden-plant` reads both and merges; folder-scoped READMEs (e.g. `$OBSIDIAN_VAULT/06_People/README.md`) are also consulted when relevant.
+`garden-plant` reads both and merges; folder-scoped READMEs (e.g. `$KG_VAULT/06_People/README.md`) are also consulted when relevant.
 
 If no README is found in either location, `garden-plant` will refuse to write and tell you what's missing. That's intentional: silent defaults are how vaults end up inconsistent.
 
@@ -114,7 +114,7 @@ They do not overlap. `knowledge-gardener` is specifically for knowledge that sho
 
 - [Claude Code](https://claude.ai/code)
 - A markdown vault (folder of `.md` files) with a `README.md` that documents its own conventions
-- `OBSIDIAN_VAULT` env var set to the vault root
+- `KG_VAULT` env var set to the vault root
 
 ## Contributing
 

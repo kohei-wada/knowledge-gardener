@@ -38,8 +38,8 @@ If unsure, **propose** before writing. Never write to the vault silently when th
 
 ### Step 1: Resolve Vault Path
 
-1. Read `OBSIDIAN_VAULT` environment variable.
-2. If unset: stop. Report: "Set `OBSIDIAN_VAULT` to your vault root (e.g. `export OBSIDIAN_VAULT=~/notes`) and restart the session."
+1. Read `KG_VAULT` environment variable.
+2. If unset: stop. Report: "Set `KG_VAULT` to your vault root (e.g. `export KG_VAULT=~/notes`) and restart the session."
 3. Verify the directory exists. If not: stop and report the missing path.
 
 Refer to this resolved path as `$KG_VAULT` for the rest of this skill.

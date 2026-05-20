@@ -84,7 +84,7 @@ Add a graph edge between a **MOC** and one or more **child notes**. Bi-direction
 
 ### Step 1: Resolve Vault Path
 
-1. Read `OBSIDIAN_VAULT` environment variable. If unset: stop and tell the user to set it.
+1. Read `KG_VAULT` environment variable. If unset: stop and tell the user to set it.
 2. Verify the directory exists. If not: stop and report the missing path.
 
 Refer to this path as `$KG_VAULT` for the rest of this skill.

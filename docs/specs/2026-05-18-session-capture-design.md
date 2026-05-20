@@ -2,19 +2,19 @@
 
 - **Date**: 2026-05-18
 - **Status**: Approved (pending spec review)
-- **Target release**: knowledge-gardener v0.7.0
+- **Target release**: knowledge-gardener v0.8.0
 - **Source RFP**: [GitHub issue #1](https://github.com/Kohei-Wada/knowledge-gardener/issues/1)
 - **Phase**: 1 of 3 (capture only; garden-recap consumer is Phase 2)
 
 ## Goal
 
-Ship the **capture half** of issue #1: a `PostToolUse` hook that appends a one-line evidence entry per material tool call to `~/.local/share/knowledge-gardener/sessions/<date>-<sid>.log`. `garden-recap` itself does **not** change in this phase — it continues to recall from Claude's context. The log file is consumed in Phase 2 (v0.8.0).
+Ship the **capture half** of issue #1: a `PostToolUse` hook that appends a one-line evidence entry per material tool call to `~/.local/share/knowledge-gardener/sessions/<date>-<sid>.log`. `garden-recap` itself does **not** change in this phase — it continues to recall from Claude's context. The log file is consumed in Phase 2 (v0.9.0).
 
 ## Why split
 
 Capture is testable independently: install the plugin, run normal Claude sessions, inspect `~/.local/share/knowledge-gardener/sessions/`. No skill behavior changes, so there is zero risk of regressing existing recap UX. The runtime data from Phase 1 also informs Phase 2's filter calibration and `garden-recap` parsing format choices.
 
-## Scope (v0.7.0)
+## Scope (v0.8.0)
 
 ### In scope
 
@@ -37,7 +37,7 @@ Capture is testable independently: install the plugin, run normal Claude session
 
 ### Out of scope (Phase 2 / Phase 3 / never)
 
-- `garden-recap` reading the log file. → Phase 2 (v0.8.0).
+- `garden-recap` reading the log file. → Phase 2 (v0.9.0).
 - Log retention / GC. → Phase 3 (future `garden-prune-sessions` skill or similar). Logs accumulate indefinitely in Phase 1; the directory is small (a few KB per day).
 - JSONL or structured fields (diff stat, exit code). → considered if a Phase 2 consumer needs them; Phase 1 stays plain text.
 - Cross-session aggregation, search index, or web viewer. → never in this plugin; that is claude-mem's domain.
@@ -169,7 +169,7 @@ A captured entry is ~100 bytes. A busy hour of tool calls is ~200 entries = ~20 
 | `scripts/capture.py` | Create | Python 3, stdlib only |
 | `README.md` | Modify | Mention session-log capture under a new "Phase 1: Session Capture" subsection |
 | `CLAUDE.md` | Modify | Add the capture hook + script to the Architecture section |
-| `package.json` / `plugin.json` / `marketplace.json` | Modify | Atomic bump `0.6.0` → `0.7.0` |
+| `package.json` / `plugin.json` / `marketplace.json` | Modify | Atomic bump from the prior release (e.g. `0.7.x` → `0.8.0`) |
 
 No skill files change. `garden-recap/SKILL.md` is left untouched — that is Phase 2.
 
@@ -183,7 +183,7 @@ No skill files change. `garden-recap/SKILL.md` is left untouched — that is Pha
 - **Binary or non-UTF-8 content in tool_input**: Python's default str ops handle this; we only need to display, not preserve. Replace undecodable bytes with `?` during target composition.
 - **Concurrent sessions writing to the same log file**: should never happen — `<sid8>` partitions per session. If by collision two sessions land in the same file, append-mode writes are still atomic at the OS level for entries under PIPE_BUF (~4 KB), which is well above our entry size. Acceptable risk.
 - **User has `XDG_DATA_HOME` set to a non-standard path**: respected. Falls back to `~/.local/share` when unset.
-- **Claude Code on Windows**: out of scope for v0.7.0. The script uses `os.path.expanduser` and `os.environ`, which work on Windows in principle, but no testing matrix yet. Defer to a later release.
+- **Claude Code on Windows**: out of scope for v0.8.0. The script uses `os.path.expanduser` and `os.environ`, which work on Windows in principle, but no testing matrix yet. Defer to a later release.
 
 ## Privacy / safety re-statement
 
@@ -193,20 +193,20 @@ No skill files change. `garden-recap/SKILL.md` is left untouched — that is Pha
 - Privacy strip catches the most common foot-guns (`<private>` markers, `KEY=...` shapes).
 - Logs live under the user's home dir with `0700`/`0600` modes. Not synced to git, not synced to the vault, not transmitted anywhere.
 
-## Release Checklist (v0.7.0)
+## Release Checklist (v0.8.0)
 
 1. New `scripts/capture.py` per this design.
 2. Update `hooks/hooks.json` to add the `PostToolUse` registration alongside the existing `SessionStart`.
 3. Add a "Phase 1: Session Capture" subsection to `README.md` explaining the log path and what is captured.
 4. Update `CLAUDE.md` Architecture section to mention the capture hook + script.
-5. Bump `package.json` / `.claude-plugin/plugin.json` / `.claude-plugin/marketplace.json` from `0.6.0` → `0.7.0` atomically.
-6. Commit, tag `v0.7.0`, push.
+5. Bump `package.json` / `.claude-plugin/plugin.json` / `.claude-plugin/marketplace.json` to `0.8.0` atomically.
+6. Commit, tag `v0.8.0`, push.
 
 ## Open questions
 
 None for Phase 1; everything below is deferred to Phase 2.
 
-### Phase 2 hand-off notes (for the implementer of v0.8.0)
+### Phase 2 hand-off notes (for the implementer of v0.9.0)
 
 - The log file naming convention `<YYYY-MM-DD>-<sid8>.log` is the Phase 2 consumer's input. Today's log files = `~/.local/share/knowledge-gardener/sessions/$(date +%F)-*.log`.
 - `garden-recap` should read these as the source of truth when present and fall back to the existing recollection-based path when absent.

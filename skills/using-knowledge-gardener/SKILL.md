@@ -92,9 +92,9 @@ The `garden-plant` skill handles the detailed decision tree, but at the entry la
 
 These variables are referenced by all knowledge-gardener skills. Do not redefine in individual skills.
 
-- `KG_VAULT` = value of the `OBSIDIAN_VAULT` environment variable. If unset, skills MUST stop and tell the user: "Set `OBSIDIAN_VAULT` to your vault root (e.g. `export OBSIDIAN_VAULT=~/notes`) and restart the session."
+- `KG_VAULT` = value of the `KG_VAULT` environment variable. If unset, skills MUST stop and tell the user: "Set `KG_VAULT` to your vault root (e.g. `export KG_VAULT=~/notes`) and restart the session."
 
-The variable name `OBSIDIAN_VAULT` is for ergonomics — many users already have Obsidian. The plugin itself does not require Obsidian; any directory of markdown files with a README describing its conventions works.
+The vault can be any directory of markdown files with a `README.md` describing its conventions — Obsidian, plain markdown, or anything else.
 
 ## Coexistence
 

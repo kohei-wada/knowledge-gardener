@@ -23,7 +23,7 @@ Read-only search and listing primitive for the vault. Wraps `grep` / `rg` / a YA
 
 ### Step 1: Resolve Vault Path
 
-1. Read `OBSIDIAN_VAULT` environment variable. If unset: stop and tell the user to set it.
+1. Read `KG_VAULT` environment variable. If unset: stop and tell the user to set it.
 2. Verify the directory exists. If not: stop and report the missing path.
 
 Refer to this path as `$KG_VAULT` for the rest of this skill.

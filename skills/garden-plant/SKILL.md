@@ -36,25 +36,11 @@ If unsure, **propose** before writing. Never write to the vault silently when th
 
 ## Process
 
-### Step 1: Resolve Vault Path
+### Step 1: Pre-flight Setup
 
-1. Read `KG_VAULT` environment variable.
-2. If unset: stop. Report: "Set `KG_VAULT` to your vault root (e.g. `export KG_VAULT=~/notes`) and restart the session."
-3. Verify the directory exists. If not: stop and report the missing path.
+Follow [Pre-flight Setup](../using-knowledge-gardener/SKILL.md#pre-flight-setup-shared-by-all-operational-skills) in `using-knowledge-gardener` to resolve `$KG_VAULT` and load vault conventions.
 
-Refer to this resolved path as `$KG_VAULT` for the rest of this skill.
-
-### Step 2: Load Vault Conventions
-
-Read these files in order, stopping when you have enough information to format a note correctly:
-
-1. **`$KG_VAULT/README.md`** — vault-root convention document (most specific).
-2. **`$KG_VAULT/../README.md`** — parent directory README. Many vaults live as a subdirectory of a git repo (e.g. `Obsidian/vault/`); the repo-root README often holds the convention spec. Read this even if the vault-root one exists — the vault-root version overrides on conflict, but the parent fills gaps.
-3. **Folder-scoped READMEs** — if the note's target folder has its own `README.md` (e.g. `$KG_VAULT/<some-folder>/README.md`), read it for sub-folder-specific rules.
-4. Any style guide / contributing doc the above explicitly point to (e.g. `CONVENTIONS.md`, `STRUCTURE.md`, `_meta/README.md`).
-5. A representative existing note (sample 1-2 from the folder you intend to write to) — to see conventions in practice.
-
-Extract these (don't invent any you can't find documented or modeled):
+From the conventions, extract for this skill (don't invent any you can't find documented or modeled):
 
 - Folder layout — where does this kind of note belong?
 - Filename rules — kebab-case? Luhmann ID? date-prefix? something else?
@@ -63,9 +49,7 @@ Extract these (don't invent any you can't find documented or modeled):
 - Tag namespace — what tags exist? are they constrained?
 - Pre-commit / lint rules — anything the vault enforces (e.g. "no wikilinks", "all internal links must resolve")
 
-If a critical convention is missing or unclear, **stop and ask the user** rather than guess. Inventing a silent default is a failure mode.
-
-### Step 3: Check for Duplicates
+### Step 2: Check for Duplicates
 
 Before proposing a new note, look for existing coverage. **Prefer `garden-survey`** — it knows the vault's exclusion conventions, parses frontmatter for tags, and returns a stable structured format that's easy to act on. Pass it the candidate keywords and any obvious tag from your draft (e.g. `context/work`).
 
@@ -79,9 +63,9 @@ grep -rli "<keyword>" "$KG_VAULT" --include='*.md' \
 
 If something close exists, **prefer routing to `garden-water` (update) over creating a duplicate** — surface the candidate to the user, then hand off to `garden-water` for the actual edit if they confirm.
 
-### Step 4: Draft the Note
+### Step 3: Draft the Note
 
-Compose the note **using the conventions extracted in Step 2**. The body itself should:
+Compose the note **using the conventions extracted in Step 1**. The body itself should:
 
 - Lead with the rule, fact, or decision in one sentence.
 - For rules/decisions: include a **Why** line (motivation) and a **How to apply** line (when it kicks in). The "why" is what lets future-you judge edge cases.
@@ -89,7 +73,7 @@ Compose the note **using the conventions extracted in Step 2**. The body itself 
 - Link to related existing notes per the vault's link syntax.
 - Stay concise. Notes age; bloat ages worse.
 
-### Step 5: Propose, Don't Commit
+### Step 4: Propose, Don't Commit
 
 **Default: do not write the file directly.** Show the user:
 
@@ -101,7 +85,7 @@ Ask for confirmation. Only write after the user approves.
 
 **Exception**: if the user explicitly said "save this to my vault" / "vault に書いといて" / "メモっといて", treat that as approval and write directly — but still show the path and content in the response so they can correct it.
 
-### Step 6: Write and Commit (if vault is a git repo)
+### Step 5: Write and Commit (if vault is a git repo)
 
 After approval:
 

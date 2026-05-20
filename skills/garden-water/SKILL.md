@@ -24,31 +24,19 @@ Water existing knowledge in the user's vault — append new info, add a link, fi
 
 ## Process
 
-### Step 1: Resolve Vault Path
+### Step 1: Pre-flight Setup
 
-1. Read `KG_VAULT` environment variable. If unset: stop and tell the user to set it.
-2. Verify the directory exists. If not: stop and report the missing path.
+Follow [Pre-flight Setup](../using-knowledge-gardener/SKILL.md#pre-flight-setup-shared-by-all-operational-skills) in `using-knowledge-gardener` to resolve `$KG_VAULT` and load vault conventions.
 
-Refer to this path as `$KG_VAULT` for the rest of this skill.
+From the conventions, extract for this skill: link syntax (e.g. standard markdown `[text](path.md)` vs `[[wikilink]]`), frontmatter schema, tag namespace, lint rules, commit conventions.
 
-### Step 2: Load Vault Conventions
-
-Read in order, stopping when you have enough:
-
-1. `$KG_VAULT/README.md` (vault-root, most specific)
-2. `$KG_VAULT/../README.md` (parent — many vaults live under a git repo)
-3. `$KG_VAULT/CLAUDE.md` or `$KG_VAULT/../CLAUDE.md` (operational instructions including Versioning Discipline)
-4. The target note's folder-scoped `README.md` if it exists
-
-Extract: link syntax (e.g. standard markdown `[text](path.md)` vs `[[wikilink]]`), frontmatter schema, tag namespace, lint rules, commit conventions.
-
-### Step 3: Identify Target Note(s)
+### Step 2: Identify Target Note(s)
 
 - **Explicit path or filename in the request**: use it. Verify the file exists; if not, suggest `garden-plant`.
 - **Topic only**: call `garden-survey` for candidates and present the top matches. **Ask** which to update — never silently pick.
 - **Same logical change on multiple notes** (e.g. adding the same tag to several files): allowed in one invocation as long as the change is identical per file. Otherwise split into separate water operations.
 
-### Step 4: Determine Change Type
+### Step 3: Determine Change Type
 
 | Change type | What it does | How to apply |
 |-------------|--------------|--------------|
@@ -59,7 +47,7 @@ Extract: link syntax (e.g. standard markdown `[text](path.md)` vs `[[wikilink]]`
 
 Pick **one** change type per invocation. Bundling tag-fix + section-addition in one commit hides intent. Split into separate water calls so the commit history stays atomic.
 
-### Step 5: Read the Target
+### Step 4: Read the Target
 
 Read the existing note in full **using the Read tool** before drafting. The Edit tool tracks per-file Read history and will refuse to apply edits to a file that was never opened with `Read`; reading via `Bash` (`cat`, `head`, `grep` etc.) does **not** count for this tracking. So even if you already inspected the file via shell to scope the change, run `Read` on the file before the Edit step.
 
@@ -70,7 +58,7 @@ You need to know:
 - The existing tag list (don't duplicate when adding a tag).
 - The link syntax in use (avoid mixing wikilinks with standard markdown if the README forbids).
 
-### Step 6: Draft the Change
+### Step 5: Draft the Change
 
 Compose **only the diff**, not the whole file. The body of the change should:
 
@@ -79,7 +67,7 @@ Compose **only the diff**, not the whole file. The body of the change should:
 - For frontmatter changes: insert the new line in the right list, preserve YAML indentation, never break the closing `---` fence.
 - For new sections: use the existing heading depth and emoji style (e.g. `## 🔗 Related Links` when the note uses emoji'd headings).
 
-### Step 7: Propose, Don't Commit
+### Step 6: Propose, Don't Commit
 
 **Default: do not write directly.** Show the user:
 
@@ -91,7 +79,7 @@ Ask for approval. Apply only after the user confirms.
 
 **Exception**: if the user explicitly said "update X" / "X に Y 足して" / "X 直して", treat that as approval. Still show the diff and path in the response so they can correct.
 
-### Step 8: Apply the Change
+### Step 7: Apply the Change
 
 Use the **Edit tool** (not Write — Edit preserves the rest of the file byte-for-byte). Provide a unique `old_string` anchor; if uniqueness is fragile, include enough surrounding context to disambiguate.
 
@@ -105,7 +93,7 @@ old_string: "tags:\n  - moc\n"                            # anchored at first ta
 
 Prefer the smallest unique anchor.
 
-### Step 9: Lint and Commit
+### Step 8: Lint and Commit
 
 Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when present):
 

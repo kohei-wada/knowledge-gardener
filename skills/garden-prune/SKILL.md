@@ -25,43 +25,31 @@ Remove one or more named existing notes from the vault. Default is **archive** (
 
 ## Process
 
-### Step 1: Resolve Vault Path
+### Step 1: Pre-flight Setup
 
-1. Read `KG_VAULT` environment variable. If unset: stop and tell the user to set it.
-2. Verify the directory exists. If not: stop and report the missing path.
+Follow [Pre-flight Setup](../using-knowledge-gardener/SKILL.md#pre-flight-setup-shared-by-all-operational-skills) in `using-knowledge-gardener` to resolve `$KG_VAULT` and load vault conventions.
 
-Refer to this path as `$KG_VAULT` for the rest of this skill.
+From the conventions, extract for this skill: link syntax (e.g. standard markdown `[text](path.md)` vs `[[wikilink]]`), **archive folder location** (e.g. `99_archive/`, `archive/`, `_archive/`), tag namespace (only relevant for surfacing inbound link snippets), lint rules, commit conventions.
 
-### Step 2: Load Vault Conventions
-
-Read in order, stopping when you have enough:
-
-1. `$KG_VAULT/README.md` (vault-root, most specific)
-2. `$KG_VAULT/../README.md` (parent — many vaults live under a git repo)
-3. `$KG_VAULT/CLAUDE.md` or `$KG_VAULT/../CLAUDE.md` (operational instructions including Versioning Discipline)
-4. The target folder's `README.md` if it exists
-
-Extract: link syntax (e.g. standard markdown `[text](path.md)` vs `[[wikilink]]`), **archive folder location** (e.g. `99_archive/`, `archive/`, `_archive/`), tag namespace (only relevant for surfacing inbound link snippets), lint rules, commit conventions.
-
-### Step 3: Identify Target Note(s)
+### Step 2: Identify Target Note(s)
 
 - **Explicit path or filename in the request**: use it. Verify each file exists; if not, stop and report — do not silently treat a missing target as a no-op.
 - **Topic only**: call `garden-survey` for candidates and ask which to prune. Never silently pick.
 - **Multiple targets in one invocation** (batch): allowed as long as the **mode is identical** across the batch (all archive OR all hard-delete). Mixed-mode batches must be split into separate invocations.
 
-### Step 4: Decide Mode
+### Step 3: Decide Mode
 
 - **Default**: archive (soft delete).
 - **Hard delete**: only when the user uses an explicit trigger phrase ("完全に削除" / "permanently delete" / "hard delete" / "remove permanently" / "rm <file>"). When ambiguous, default to archive and surface the choice in the proposal so the user can correct.
 
-### Step 5: Resolve Archive Destination (archive mode only)
+### Step 4: Resolve Archive Destination (archive mode only)
 
 1. Look up the archive folder name in the vault README. Do not invent one.
 2. If the README does not document an archive folder: **stop**. Ask the user what folder to use, and recommend they document it in the vault README for future runs.
 3. For each target, compute the destination path: `<archive-folder>/<basename>`.
 4. If a file with that basename already exists at the destination: rename with a date suffix — `<basename-without-ext>.<YYYY-MM-DD>.<ext>` (e.g. `ssh-old.md` → `ssh-old.2026-05-18.md`). Surface the final name in the proposal.
 
-### Step 6: Scan Inbound Links
+### Step 5: Scan Inbound Links
 
 For each target, scan the rest of the vault for links pointing at it. Use `rg` when available; fall back to `grep`. The exact patterns depend on the link syntax declared by the vault README.
 
@@ -84,7 +72,7 @@ Collect file + line snippets. Exclude the target file itself from the results. E
 
 Do **not** edit any of the matches. This step is read-only; it produces a list for the proposal.
 
-### Step 7: Propose, Don't Commit
+### Step 6: Propose, Don't Commit
 
 **Default: do not write directly.** Show the user, per target:
 
@@ -98,16 +86,16 @@ Ask for approval. Apply only after the user confirms.
 
 **Exception:** an explicit "archive X" / "X 消して" / "delete X permanently" request counts as approval for the named targets. Still show the proposal in the response so the user can correct (especially if inbound links exist — they may want to abort and clean up first).
 
-### Step 8: Apply
+### Step 7: Apply
 
 Per target, in order:
 
-- **Archive mode**: `git mv <source> <destination>`. The destination path is the one resolved in Step 5 (with date suffix if there was a collision). Do not `git mv` and immediately re-edit the file; leave its contents byte-for-byte identical.
+- **Archive mode**: `git mv <source> <destination>`. The destination path is the one resolved in Step 4 (with date suffix if there was a collision). Do not `git mv` and immediately re-edit the file; leave its contents byte-for-byte identical.
 - **Hard mode**: `git rm <source>`. No copy, no backup; the user explicitly chose this.
 
 Do not stage anything else. Do not use `git add -A`.
 
-### Step 9: Lint, Commit, Push
+### Step 8: Lint, Commit, Push
 
 Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when present):
 

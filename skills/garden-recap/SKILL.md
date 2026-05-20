@@ -22,22 +22,11 @@ Capture the current session's work — outcomes, files touched, decisions, follo
 
 ## Process
 
-### Step 1: Resolve Vault Path
+### Step 1: Pre-flight Setup
 
-1. Read `KG_VAULT`. Stop and ask if unset.
-2. Verify directory exists.
+Follow [Pre-flight Setup](../using-knowledge-gardener/SKILL.md#pre-flight-setup-shared-by-all-operational-skills) in `using-knowledge-gardener` to resolve `$KG_VAULT` and load vault conventions. Additionally read the **daily-note template** wherever the README points to it.
 
-Refer to it as `$KG_VAULT`.
-
-### Step 2: Load Vault Conventions
-
-Read in order:
-
-1. `$KG_VAULT/README.md` and `$KG_VAULT/../README.md` — folder layout, link syntax, frontmatter schema
-2. `$KG_VAULT/CLAUDE.md` or `$KG_VAULT/../CLAUDE.md` — operational rules (including Versioning Discipline)
-3. The daily-note template — wherever the README points to it
-
-Extract whatever the README + template declare. At minimum, you need to discover:
+From the conventions + template, extract for this skill (at minimum):
 
 - Where daily notes live (folder).
 - How daily notes are named (filename convention).
@@ -48,7 +37,7 @@ Extract whatever the README + template declare. At minimum, you need to discover
 
 If any of these are not discoverable from the README or templates, stop and ask the user. Do not invent defaults.
 
-### Step 3: Inventory the Session
+### Step 2: Inventory the Session
 
 Gather concrete facts to fill the recap. **Don't make things up — only record what you can support with evidence from the conversation, file state, the session log, or `git log`.**
 
@@ -108,41 +97,41 @@ The log records actions, not reasoning. These items always come from conversatio
 
 Cap each list to roughly the most-significant ~5 items. A recap is a summary, not a transcript.
 
-### Step 4: Locate Today's Daily Note
+### Step 3: Locate Today's Daily Note
 
-- Format today's date per the vault's filename convention discovered in Step 2.
-- Build the full path under the daily-note folder discovered in Step 2.
+- Format today's date per the vault's filename convention discovered in Step 1.
+- Build the full path under the daily-note folder discovered in Step 1.
 - Check existence:
   - **Exists** → this will be an **append** operation. Read the file in full with the Read tool (not `Bash head/cat`, which doesn't count toward the Edit tool's per-file read tracking).
   - **Missing** → this will be a **new file**. Load the daily-note template content to use as scaffold.
 
-### Step 5: Draft the Recap
+### Step 4: Draft the Recap
 
-The daily-note template (loaded in Step 2) is the structure. Fill each section the template defines with content from your Step 3 inventory. Do not invent sections the template does not define; do not impose section names from elsewhere.
+The daily-note template (loaded in Step 1) is the structure. Fill each section the template defines with content from your Step 2 inventory. Do not invent sections the template does not define; do not impose section names from elsewhere.
 
 - Write in the language declared by the README (or the language the existing notes use, if the README is silent).
 - Use the link syntax declared by the README. Do not normalise links to a different syntax.
 - For an **append** to an existing daily note: do NOT overwrite earlier content. Apply the README's multi-session convention if one is documented; if none is documented, integrate new bullets into existing template sections without restructuring them.
 
-### Step 6: Propose, Don't Commit
+### Step 5: Propose, Don't Commit
 
 Show the user:
 
-1. The target path (the absolute path resolved in Step 4).
+1. The target path (the absolute path resolved in Step 3).
 2. The **diff** (for append) or **full draft** (for new file).
 3. The change is large enough — feel free to break into "outcomes / files / learnings / follow-ups" subsections in your proposal output so the user can red-line specific parts.
 4. One-line rationale: "Capturing today's session so the next one can pick up context."
 
 Ask for approval. Apply only after confirmation, unless the user explicitly said "wrap up and write it" / "ここまでまとめて書いて".
 
-### Step 7: Apply the Change
+### Step 6: Apply the Change
 
 - **New daily note**: use the **Write tool** to create the file with the full content.
-- **Append to existing**: use the **Edit tool** with appropriate anchors. Per garden-water Step 5, you must have called the Read tool on the file first; `Bash head/cat` doesn't count.
+- **Append to existing**: use the **Edit tool** with appropriate anchors. Per garden-water Step 4, you must have called the Read tool on the file first; `Bash head/cat` doesn't count.
 
 For appending, prefer anchoring on a stable section header from the template (whichever exists in the file) and inserting before or after it, rather than trying to match a long block that might have been autofixed by markdownlint.
 
-### Step 8: Lint, Commit, Push
+### Step 7: Lint, Commit, Push
 
 Per the vault's Versioning Discipline (declared in `$KG_VAULT/../CLAUDE.md` when present):
 

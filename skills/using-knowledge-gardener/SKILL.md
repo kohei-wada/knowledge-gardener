@@ -24,18 +24,34 @@ CRUD is complete: garden-plant (C), garden-survey (R), garden-water (U), garden-
 
 This plugin is **format-agnostic**. Skills MUST NOT hardcode note structure, filename rules, link syntax, frontmatter fields, folder layout, or any other formatting decision.
 
-Before any write/update operation, the skill MUST:
-
-1. Locate the vault's convention document. Check both:
-   - `${KG_VAULT}/README.md` — the vault's own root
-   - `${KG_VAULT}/../README.md` — the parent (often the git repo root, when the vault is a subdirectory like `Obsidian/vault/`)
-
-   Both can exist; the vault-root one is more specific and should override the parent on any conflict.
-2. Apply the conventions documented there — folder structure, ID/filename rules, link syntax (`[[wikilink]]` vs `[md](path.md)`), frontmatter schema, tag namespace, etc.
-3. Also consult any folder-scoped `README.md` inside the directory you're about to write into (e.g. `${KG_VAULT}/<some-folder>/README.md`) for sub-folder-specific conventions.
-4. If a critical convention is unclear or absent, stop and ask the user rather than guess. Inventing a new convention silently is a worse failure than asking.
-
 The vault is the source of truth for "how". This plugin is the source of truth for "when".
+
+## Pre-flight Setup (shared by all operational skills)
+
+Every operational skill (`garden-plant` / `garden-water` / `garden-survey` / `garden-connect` / `garden-prune` / `garden-recap`) begins with the same two pre-flight steps. They are defined **once here** and referenced from each skill instead of being copied. Skills extract different things from the conventions — that extraction list lives in the skill, not here.
+
+### Step P1: Resolve Vault Path
+
+1. Read `KG_VAULT` environment variable.
+2. If unset: stop. Report: "Set `KG_VAULT` to your vault root (e.g. `export KG_VAULT=~/notes`) and restart the session."
+3. Verify the directory exists. If not: stop and report the missing path.
+
+Refer to the resolved path as `$KG_VAULT` throughout the skill.
+
+### Step P2: Load Vault Conventions
+
+Read these in order, stopping when you have enough to act:
+
+1. **`$KG_VAULT/README.md`** — vault-root convention document (most specific).
+2. **`$KG_VAULT/../README.md`** — parent directory README. Many vaults live as a subdirectory of a git repo (e.g. `Obsidian/vault/`); the repo-root README often holds the convention spec. Read both — the vault-root one overrides on conflict, the parent fills gaps.
+3. **`$KG_VAULT/CLAUDE.md`** or **`$KG_VAULT/../CLAUDE.md`** if present — operational instructions including Versioning Discipline (lint/commit/push workflow).
+4. **Folder-scoped `README.md`** — if the target folder has its own `README.md`, read it for sub-folder-specific rules.
+5. Any style/structure doc the above explicitly point to (e.g. `CONVENTIONS.md`, `STRUCTURE.md`, `_meta/README.md`).
+6. A representative existing note from the target folder — to see conventions in practice.
+
+If a critical convention is unclear or absent, **stop and ask the user** rather than guess. Inventing a silent default is a failure mode.
+
+What each skill needs to **extract** from the conventions (link syntax, frontmatter schema, archive folder, daily-note template, etc.) is skill-specific and listed at the top of the skill's process.
 
 ## Skill Routing
 

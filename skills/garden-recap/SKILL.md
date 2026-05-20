@@ -50,7 +50,46 @@ If any of these are not discoverable from the README or templates, stop and ask 
 
 ### Step 3: Inventory the Session
 
-Gather concrete facts to fill the recap. **Don't make things up — only record what you can support with evidence from the conversation, file state, or `git log`.**
+Gather concrete facts to fill the recap. **Don't make things up — only record what you can support with evidence from the conversation, file state, the session log, or `git log`.**
+
+#### 3a. Read the session log (Phase 1 + 2)
+
+Since `v0.8.0`, a `PostToolUse` hook captures one log line per material tool call to `$XDG_STATE_HOME/knowledge-gardener/sessions/<YYYY-MM-DD>-<sid8>.log`. `v0.9.0` adds an aggregator script that turns those raw lines into a recap-ready summary.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/recap_aggregate.py"
+```
+
+By default it picks the most-recently-modified session log for today (≈ the active session). Useful flags:
+
+- `--all` — include every session for today (when the user did multiple Claude sessions).
+- `--sid <sid8>` — pick a specific session.
+- `--date YYYY-MM-DD` — aggregate a different day.
+
+The output is plain text in this shape (per session):
+
+```
+## Session <HH:MM> - <HH:MM> (sid8: <sid8>)
+Duration: <N>m, <N> captured tool calls.
+
+### Files touched
+- <path> (<n> edits)
+
+### Bash highlights
+- <command>
+
+### Other tool activity
+- Agent: <n> dispatch(es) — <subagent_types>
+- WebFetch/WebSearch: <n>
+- MCP: <server>(<n>), <server>(<n>)
+- Errors: <n>
+```
+
+If the output contains at least one session block with a non-zero entry count, **treat it as the evidence inventory** for Outcomes / Files / Tool activity. Cross-check with `git log --since=<today-00:00>` for vault changes when summarizing what was committed.
+
+If the output is `0 session(s) found` or contains only zero-entry sessions, the hook wasn't capturing (older plugin install, or session predates `v0.8.0`). **Fall back to recollection-based inventory** as documented in 3b.
+
+#### 3b. Recollection fallback (no log available)
 
 - **Time range**: when did the session effectively start? Use the conversation start (or the user's first substantive message) and `date` for "now".
 - **Outcomes**: what was decided / built / fixed / shipped this session? One sentence each.
@@ -59,8 +98,13 @@ Gather concrete facts to fill the recap. **Don't make things up — only record 
   - Or `git diff --stat` if commits not yet made.
   - Aggregate as a short list with one-line descriptions.
 - **New notes planted today**: query the vault for `date: <today>` frontmatter or `git -C "$KG_VAULT/.." log --since=<today-00:00> --name-only` to find newly-added notes. List them.
-- **Decisions / principles surfaced**: distill the conversation. Any new rules, gotchas, or trade-offs that should outlive the session.
-- **Open follow-ups**: TODOs or deferrals the user mentioned but didn't act on. State them so future-you doesn't lose the thread.
+
+#### 3c. Always from conversation (both paths)
+
+The log records actions, not reasoning. These items always come from conversation context regardless of whether 3a or 3b ran:
+
+- **Decisions / principles surfaced**: any new rules, gotchas, or trade-offs that should outlive the session.
+- **Open follow-ups**: TODOs or deferrals the user mentioned but didn't act on.
 
 Cap each list to roughly the most-significant ~5 items. A recap is a summary, not a transcript.
 
@@ -123,7 +167,7 @@ Body of the commit message: optional one-paragraph summary of what was recapped.
 
 ## Key Principles
 
-- **Evidence over recollection.** When listing files touched or notes planted, support each item with `git log` / file existence / actual conversation message. Don't paraphrase your own memory of what "probably" happened.
+- **Evidence over recollection.** When listing files touched or notes planted, support each item with the session log / `git log` / file existence / actual conversation message. Don't paraphrase your own memory of what "probably" happened.
 - **One commit per session recap.** The daily note may collect multiple sessions in one day, but each recap is its own commit so history stays readable.
 - **Mirror the daily template's structure.** Don't impose a recap format that contradicts what the template already provides. Follow the vault.
 - **Future-you reads this.** Write so that next session opens the daily note and immediately knows what shape today was in — outcomes first, files next, learnings + follow-ups last.

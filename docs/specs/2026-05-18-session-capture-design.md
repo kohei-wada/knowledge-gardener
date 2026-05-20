@@ -204,9 +204,9 @@ No skill files change. `garden-recap/SKILL.md` is left untouched — that is Pha
 
 ## Open questions
 
-None for Phase 1; everything below is deferred to Phase 2.
+None for Phase 1; everything below was deferred to Phase 2 (implemented in `v0.9.0`, see [2026-05-20-recap-aggregator-design.md](2026-05-20-recap-aggregator-design.md)).
 
-### Phase 2 hand-off notes (for the implementer of v0.9.0)
+### Phase 2 hand-off notes (implemented in v0.9.0)
 
 - The log file naming convention `<YYYY-MM-DD>-<sid8>.log` is the Phase 2 consumer's input. Today's log files = `~/.local/state/knowledge-gardener/sessions/$(date +%F)-*.log`.
 - `garden-recap` should read these as the source of truth when present and fall back to the existing recollection-based path when absent.

@@ -1,0 +1,274 @@
+"""Tests for scripts/recap_aggregate.py."""
+from __future__ import annotations
+
+import datetime as _dt
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = REPO_ROOT / "scripts" / "recap_aggregate.py"
+
+
+def run(args: list[str], *, state_home: Path) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["XDG_STATE_HOME"] = str(state_home)
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *args],
+        text=True,
+        capture_output=True,
+        env=env,
+        timeout=10,
+        check=False,
+    )
+
+
+def write_log(state_home: Path, date: _dt.date, sid8: str, lines: list[str]) -> Path:
+    sessions = state_home / "knowledge-gardener" / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    path = sessions / f"{date.isoformat()}-{sid8}.log"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def today_str() -> str:
+    return _dt.date.today().isoformat()
+
+
+# --- empty / missing inputs --------------------------------------------------
+
+def test_missing_log_dir_returns_zero_sessions(tmp_path):
+    res = run([], state_home=tmp_path)
+    assert res.returncode == 0
+    assert f"# Sessions on {today_str()}" in res.stdout
+    assert "0 session(s) found" in res.stdout
+
+
+def test_empty_log_file_produces_session_block(tmp_path):
+    write_log(tmp_path, _dt.date.today(), "emptysid", [])
+    res = run([], state_home=tmp_path)
+    assert "1 session(s) found" in res.stdout
+    assert "sid8: emptysid" in res.stdout
+    assert "0 captured tool calls" in res.stdout
+
+
+# --- single session ---------------------------------------------------------
+
+def test_single_session_files_dedup(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "deadbeef",
+        [
+            "09:00 tool=Edit target=skills/garden-prune/SKILL.md [status=ok]",
+            "09:05 tool=Write target=skills/garden-prune/SKILL.md [status=ok]",
+            "09:10 tool=Edit target=skills/garden-water/SKILL.md [status=ok]",
+        ],
+    )
+    res = run([], state_home=tmp_path)
+    out = res.stdout
+    assert "skills/garden-prune/SKILL.md (2 edits)" in out
+    assert "skills/garden-water/SKILL.md (1 edit)" in out
+
+
+def test_bash_highlights_dedup_and_cap(tmp_path):
+    today = _dt.date.today()
+    lines = [f"09:{i:02d} tool=Bash target=cmd{i % 3}" for i in range(15)]
+    write_log(tmp_path, today, "bashsid1", lines)
+    res = run([], state_home=tmp_path)
+    out = res.stdout
+    # 3 distinct commands, all within cap
+    for i in range(3):
+        assert f"cmd{i}" in out
+
+
+def test_bash_highlights_capped_at_10(tmp_path):
+    today = _dt.date.today()
+    lines = [f"09:{i:02d} tool=Bash target=cmd{i:02d}" for i in range(20)]
+    write_log(tmp_path, today, "bashsid2", lines)
+    res = run([], state_home=tmp_path)
+    bash_section = res.stdout.split("### Bash highlights", 1)[1].split("###", 1)[0]
+    # 10 bullet lines starting with `- `
+    bullets = [l for l in bash_section.splitlines() if l.startswith("- ")]
+    assert len(bullets) == 10
+
+
+def test_agent_subagents_collected(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "agentsid",
+        [
+            "10:00 tool=Agent target=Explore:find references",
+            "10:05 tool=Agent target=Plan:design X",
+            "10:10 tool=Agent target=Explore:second explore",
+        ],
+    )
+    res = run([], state_home=tmp_path)
+    out = res.stdout
+    assert "Agent: 3 dispatch(es) — Explore, Plan" in out
+
+
+def test_webio_counted(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "webiosid",
+        [
+            "11:00 tool=WebFetch target=https://example.com",
+            "11:01 tool=WebSearch target=knowledge gardener",
+            "11:02 tool=WebFetch target=https://b.test",
+        ],
+    )
+    res = run([], state_home=tmp_path)
+    assert "WebFetch/WebSearch: 3" in res.stdout
+
+
+def test_mcp_counted_per_server(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "mcpsid12",
+        [
+            "12:00 tool=mcp__slack__slack_send target=foo",
+            "12:01 tool=mcp__slack__slack_search target=bar",
+            "12:02 tool=mcp__notion__notion_fetch target=baz",
+        ],
+    )
+    res = run([], state_home=tmp_path)
+    # Sorted alphabetically: notion before slack
+    assert "MCP: notion(1), slack(2)" in res.stdout
+
+
+def test_errors_counted(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "errsid12",
+        [
+            "13:00 tool=Edit target=a.md [status=ok]",
+            "13:01 tool=Edit target=b.md [status=err]",
+            "13:02 tool=Edit target=c.md [status=err]",
+            "13:03 tool=Bash target=git push [status=err]",
+        ],
+    )
+    res = run([], state_home=tmp_path)
+    assert "Errors: 3" in res.stdout
+
+
+def test_duration_calculation(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "duration",
+        [
+            "09:00 tool=Edit target=a.md",
+            "10:30 tool=Edit target=b.md",
+        ],
+    )
+    res = run([], state_home=tmp_path)
+    assert "Duration: 90m, 2 captured tool calls" in res.stdout
+
+
+# --- multi-session ----------------------------------------------------------
+
+def test_default_selects_latest(tmp_path):
+    today = _dt.date.today()
+    p1 = write_log(tmp_path, today, "oldold12", ["09:00 tool=Edit target=old.md"])
+    time.sleep(0.05)
+    p2 = write_log(tmp_path, today, "newnew12", ["10:00 tool=Edit target=new.md"])
+    # ensure p2 has the later mtime
+    os.utime(p2, (time.time(), time.time()))
+    res = run([], state_home=tmp_path)
+    assert "1 session(s) found" in res.stdout
+    assert "newnew12" in res.stdout
+    assert "oldold12" not in res.stdout
+
+
+def test_all_includes_every_session(tmp_path):
+    today = _dt.date.today()
+    write_log(tmp_path, today, "sessionA", ["09:00 tool=Edit target=a.md"])
+    write_log(tmp_path, today, "sessionB", ["10:00 tool=Edit target=b.md"])
+    res = run(["--all"], state_home=tmp_path)
+    assert "2 session(s) found" in res.stdout
+    assert "sessionA" in res.stdout
+    assert "sessionB" in res.stdout
+
+
+def test_sid_selects_specific(tmp_path):
+    today = _dt.date.today()
+    write_log(tmp_path, today, "want1234", ["09:00 tool=Edit target=want.md"])
+    write_log(tmp_path, today, "skip5678", ["10:00 tool=Edit target=skip.md"])
+    res = run(["--sid", "want1234"], state_home=tmp_path)
+    assert "1 session(s) found" in res.stdout
+    assert "want1234" in res.stdout
+    assert "skip5678" not in res.stdout
+
+
+def test_sid_nonexistent_returns_zero(tmp_path):
+    today = _dt.date.today()
+    write_log(tmp_path, today, "existing", ["09:00 tool=Edit target=a.md"])
+    res = run(["--sid", "noexist1"], state_home=tmp_path)
+    assert "0 session(s) found" in res.stdout
+
+
+# --- date selection ---------------------------------------------------------
+
+def test_explicit_date(tmp_path):
+    yesterday = _dt.date.today() - _dt.timedelta(days=1)
+    write_log(tmp_path, yesterday, "yest1234", ["09:00 tool=Edit target=y.md"])
+    res = run(["--date", yesterday.isoformat()], state_home=tmp_path)
+    assert yesterday.isoformat() in res.stdout
+    assert "yest1234" in res.stdout
+
+
+def test_invalid_date_exits_nonzero(tmp_path):
+    res = run(["--date", "not-a-date"], state_home=tmp_path)
+    assert res.returncode != 0
+
+
+# --- robustness -------------------------------------------------------------
+
+def test_malformed_lines_dropped(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "malforme",
+        [
+            "this is garbage",
+            "09:00 tool=Edit target=ok.md",
+            "11:00 random line",
+            "10:30 tool=Bash target=git status",
+        ],
+    )
+    res = run([], state_home=tmp_path)
+    out = res.stdout
+    assert "ok.md" in out
+    assert "git status" in out
+    assert "2 captured tool calls" in out  # garbage lines excluded
+
+
+def test_state_home_pointing_at_file(tmp_path):
+    blocker = tmp_path / "block"
+    blocker.write_text("x")
+    env = os.environ.copy()
+    env["XDG_STATE_HOME"] = str(blocker)
+    res = subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        text=True,
+        capture_output=True,
+        env=env,
+        timeout=10,
+        check=False,
+    )
+    assert res.returncode == 0
+    assert "0 session(s) found" in res.stdout

@@ -14,7 +14,7 @@ knowledge-gardener is a Claude Code skill library (plugin) that decides **when**
   - `SessionStart` injects `using-knowledge-gardener` into every session
   - `PostToolUse` (Phase 1 of issue #1) runs `scripts/capture.py` to append a one-line evidence entry per material tool call to `$XDG_STATE_HOME/knowledge-gardener/sessions/<date>-<sid8>.log` — best-effort, never blocks Claude
 - **Vault location**: Resolved from `KG_VAULT` env var at runtime; not stored in this repo
-- **Session log location**: `$XDG_STATE_HOME/knowledge-gardener/sessions/` (fallback `~/.local/state/`). Machine-local derived state, not vault content. Phase 2 will have `garden-recap` consume these logs.
+- **Session log location**: `$XDG_STATE_HOME/knowledge-gardener/sessions/` (fallback `~/.local/state/`). Machine-local derived state, not vault content. `garden-recap` consumes these logs via `scripts/recap_aggregate.py` since `v0.9.0` (Phase 2); falls back to recollection when no logs exist.
 
 ## Skills
 

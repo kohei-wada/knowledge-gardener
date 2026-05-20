@@ -99,7 +99,7 @@ What is skipped:
 
 Privacy at the edge: `<private>...</private>` blocks and `<key>=<value>` shapes for `api_key` / `secret` / `token` / `password` / `auth` are replaced with `[REDACTED]` before any byte hits disk.
 
-The log is plugin-internal evidence for a future `garden-recap` consumer (Phase 2, `v0.9.0`). The vault is never auto-grown — only what survives `garden-recap`'s user-confirmed wrap-up gets committed there. See [`docs/specs/2026-05-18-session-capture-design.md`](docs/specs/2026-05-18-session-capture-design.md) for the full design.
+Since `v0.9.0`, `garden-recap` reads these logs via `scripts/recap_aggregate.py` and uses them as the inventory source instead of relying solely on Claude's recollection. Falls back to recollection when no logs exist. The vault is never auto-grown — only what survives `garden-recap`'s user-confirmed wrap-up gets committed there. See [`docs/specs/2026-05-18-session-capture-design.md`](docs/specs/2026-05-18-session-capture-design.md) (writer / Phase 1) and [`docs/specs/2026-05-20-recap-aggregator-design.md`](docs/specs/2026-05-20-recap-aggregator-design.md) (consumer / Phase 2) for the design.
 
 ### What Counts as "Durable"
 

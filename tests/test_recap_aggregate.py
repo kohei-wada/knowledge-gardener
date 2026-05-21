@@ -272,3 +272,73 @@ def test_state_home_pointing_at_file(tmp_path):
     )
     assert res.returncode == 0
     assert "0 session(s) found" in res.stdout
+
+
+# --- --since filtering ------------------------------------------------------
+
+def test_since_filters_entries_strictly_greater(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "sincetst",
+        [
+            "09:00 tool=Edit target=a.py",
+            "09:05 tool=Edit target=b.py",
+            "09:10 tool=Edit target=c.py",
+        ],
+    )
+    res = run(["--sid", "sincetst", "--since", "09:05"], state_home=tmp_path)
+    assert res.returncode == 0, res.stderr
+    # 09:00 and 09:05 dropped (strict >), only 09:10 remains.
+    assert "c.py" in res.stdout
+    assert "a.py" not in res.stdout
+    assert "b.py" not in res.stdout
+    assert "Session 09:10 - 09:10" in res.stdout
+
+
+def test_since_excludes_equal_hhmm(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "equaltst",
+        [
+            "10:00 tool=Edit target=a.py",
+            "10:00 tool=Edit target=b.py",
+            "10:01 tool=Edit target=c.py",
+        ],
+    )
+    res = run(["--sid", "equaltst", "--since", "10:00"], state_home=tmp_path)
+    assert "a.py" not in res.stdout
+    assert "b.py" not in res.stdout
+    assert "c.py" in res.stdout
+
+
+def test_since_filter_empty_yields_zero_sessions(tmp_path):
+    today = _dt.date.today()
+    write_log(
+        tmp_path,
+        today,
+        "emptyflt",
+        [
+            "09:00 tool=Edit target=a.py",
+        ],
+    )
+    res = run(["--sid", "emptyflt", "--since", "23:59"], state_home=tmp_path)
+    # The selected log still exists, but after filtering nothing remains.
+    # render() reports the session with 0 entries — auto_recap.py checks for
+    # `0 session(s) found` OR an aggregator session with zero entries; treat
+    # both as no-op. This test pins the zero-entry path.
+    assert "0 captured tool calls" in res.stdout
+    assert "Session --:-- - --:--" in res.stdout
+
+
+def test_since_malformed_returns_exit_2(tmp_path):
+    today = _dt.date.today()
+    write_log(tmp_path, today, "badsince", ["09:00 tool=Edit target=a.py"])
+    res = run(["--sid", "badsince", "--since", "9:00"], state_home=tmp_path)
+    assert res.returncode == 2
+    assert "invalid --since" in res.stderr
+    res = run(["--sid", "badsince", "--since", "garbage"], state_home=tmp_path)
+    assert res.returncode == 2

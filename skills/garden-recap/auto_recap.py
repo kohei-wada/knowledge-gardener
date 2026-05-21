@@ -14,6 +14,7 @@ import os
 import pathlib
 import re
 import shutil
+import hashlib
 import subprocess
 import sys
 import time
@@ -24,6 +25,7 @@ import traceback
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
 from kg_paths import cursor_path as _shared_cursor_path  # noqa: E402
 from kg_paths import debounce_marker as _shared_debounce_marker  # noqa: E402
+from kg_paths import discovery_cache_path as _shared_discovery_cache_path  # noqa: E402
 from kg_paths import kg_state_dir, session_log_path as _shared_session_log_path  # noqa: E402
 
 DEFAULT_TIMEOUT = 180
@@ -56,6 +58,111 @@ def debounce_marker(sid8: str) -> pathlib.Path:
 
 def cursor_path(sid8: str) -> pathlib.Path:
     return _shared_cursor_path(sid8)
+
+
+# --- Discovery cache --------------------------------------------------------
+#
+# The vault README is the source of truth for daily-note folder/filename/etc.
+# The auto-recap discovery step asks Claude to translate that README into
+# concrete kg-discovery values on every Stop hook — but the README is stable
+# across most sessions. We cache the discovery result keyed by a hash of the
+# README content(s) so unchanged READMEs skip the discovery LLM work and the
+# compose-only prompt can be used instead. README edits change the hash and
+# naturally invalidate the cache; no TTL needed.
+
+_CACHE_SCHEMA_VERSION = 1
+_FILENAME_DATE_PLACEHOLDER = "{date}"
+
+
+def _read_readme_bytes(vault: pathlib.Path) -> bytes:
+    """Concatenate $KG_VAULT/README.md and $KG_VAULT/../README.md (if present)."""
+    parts: list[bytes] = []
+    for candidate in (vault / "README.md", vault.parent / "README.md"):
+        try:
+            parts.append(candidate.read_bytes())
+        except OSError:
+            continue
+        parts.append(b"\x00")  # separator so two empty files don't collide with one
+    return b"".join(parts)
+
+
+def compute_readme_hash(vault: pathlib.Path) -> str | None:
+    """SHA-256 of the vault's README content(s). None if no README is readable."""
+    data = _read_readme_bytes(vault)
+    if not data:
+        return None
+    return hashlib.sha256(data).hexdigest()
+
+
+def discovery_cache_path(readme_hash: str) -> pathlib.Path:
+    return _shared_discovery_cache_path(readme_hash)
+
+
+def read_discovery_cache(readme_hash: str) -> dict[str, str] | None:
+    """Return cached discovery values or None on miss / corruption.
+
+    Only returns a dict when both `folder` and `filename_pattern` are present
+    and non-empty (the minimum to skip the discovery LLM call). All other
+    failure modes (missing file, JSON error, schema mismatch) return None so
+    the caller falls back to the full discovery path.
+    """
+    path = discovery_cache_path(readme_hash)
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        log(f"discovery cache corrupted, ignoring: {path}")
+        return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("schema") != _CACHE_SCHEMA_VERSION:
+        return None
+    if data.get("readme_hash") != readme_hash:
+        return None
+    folder = (data.get("folder") or "").strip()
+    pattern = (data.get("filename_pattern") or "").strip()
+    if not folder or not pattern:
+        return None
+    return {
+        "folder": folder,
+        "filename_pattern": pattern,
+        "insert_before": (data.get("insert_before") or "").strip(),
+    }
+
+
+def write_discovery_cache(readme_hash: str, discovery: dict[str, str]) -> None:
+    """Persist discovery values for future cache hits. Best-effort."""
+    folder = (discovery.get("folder") or "").strip()
+    pattern = (discovery.get("filename_pattern") or "").strip()
+    if not folder or not pattern:
+        return  # nothing useful to cache
+    payload = {
+        "schema": _CACHE_SCHEMA_VERSION,
+        "readme_hash": readme_hash,
+        "folder": folder,
+        "filename_pattern": pattern,
+        "insert_before": (discovery.get("insert_before") or "").strip(),
+        "discovered_at": _dt.datetime.now().isoformat(timespec="seconds"),
+    }
+    path = discovery_cache_path(readme_hash)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as e:
+        log(f"discovery cache write failed: {e!r}")
+
+
+def substitute_date(pattern: str, today_str: str) -> str:
+    """Replace the literal {date} placeholder in a cached filename pattern."""
+    if not pattern:
+        return ""
+    return pattern.replace(_FILENAME_DATE_PLACEHOLDER, today_str)
+
+
+# --- end discovery cache ----------------------------------------------------
 
 
 SINCE_RE = re.compile(r"^\d{2}:\d{2}$")
@@ -252,7 +359,10 @@ _DISCOVERY_BLOCK_RE = re.compile(
     r"<!--\s*kg-discovery\s*-->(.*?)<!--\s*/kg-discovery\s*-->",
     re.DOTALL | re.IGNORECASE,
 )
-_DISCOVERY_LINE_RE = re.compile(r"^\s*(folder|filename|insert_before)\s*:\s*(.*?)\s*$", re.IGNORECASE)
+_DISCOVERY_LINE_RE = re.compile(
+    r"^\s*(folder|filename|filename_pattern|insert_before)\s*:\s*(.*?)\s*$",
+    re.IGNORECASE,
+)
 
 
 def parse_discovery(claude_output: str) -> dict[str, str]:
@@ -260,7 +370,7 @@ def parse_discovery(claude_output: str) -> dict[str, str]:
 
     Returns {} on missing/malformed block. Keys present in the returned dict
     are exactly those Claude emitted with a non-empty value, lowercase.
-    Supported keys: 'folder', 'filename', 'insert_before'.
+    Supported keys: 'folder', 'filename', 'filename_pattern', 'insert_before'.
     """
     m = _DISCOVERY_BLOCK_RE.search(claude_output)
     if not m:
@@ -277,6 +387,35 @@ def parse_discovery(claude_output: str) -> dict[str, str]:
     return out
 
 
+def _validate_daily_path(
+    vault: pathlib.Path, folder_raw: str, filename: str, *, context: str
+) -> pathlib.Path | None:
+    """Shared sanity checks for a resolved (folder, filename) pair.
+
+    Logs the same diagnostic hint shape as the older inline version when a
+    directory-tree-style README's vault-root node is mistakenly carried into
+    the folder value. `context` distinguishes the call site in the log
+    ("discovery" vs "pre-resolve") so the user can tell which path failed.
+    """
+    folder = _resolve_under_vault(vault, folder_raw)
+    if folder is None or not filename:
+        return None
+    if not folder.is_dir():
+        log(f"daily folder does not exist ({context}): {folder}")
+        first = folder_raw.lstrip("/").split("/", 1)[0]
+        if first and first == vault.name:
+            log(
+                f"hint: {context} folder {folder_raw!r} begins with the vault's "
+                f"basename {vault.name!r}; discovery may have included a "
+                f"directory-tree root node that already corresponds to $KG_VAULT"
+            )
+        return None
+    if "/" in filename or filename.startswith("."):
+        log(f"refusing suspicious daily filename ({context}): {filename!r}")
+        return None
+    return folder / filename
+
+
 def resolve_daily_path(vault: pathlib.Path, discovery: dict[str, str]) -> pathlib.Path | None:
     """Resolve today's daily-note path from env override or Claude discovery.
 
@@ -286,29 +425,39 @@ def resolve_daily_path(vault: pathlib.Path, discovery: dict[str, str]) -> pathli
     """
     folder_raw = os.environ.get("KG_DAILY_FOLDER") or discovery.get("folder", "")
     filename = (os.environ.get("KG_DAILY_FILENAME") or discovery.get("filename") or "").strip()
-    folder = _resolve_under_vault(vault, folder_raw)
-    if folder is None or not filename:
+    return _validate_daily_path(vault, folder_raw, filename, context="discovery")
+
+
+def pre_resolve_daily_path(
+    vault: pathlib.Path,
+    cached: dict[str, str] | None,
+    today_str: str,
+) -> tuple[pathlib.Path, str] | None:
+    """Try to resolve today's daily-note path from env + discovery cache only.
+
+    Returns (daily_path, insert_before) when both folder and filename can be
+    determined without an LLM discovery call; returns None to signal the
+    caller should fall back to the full discovery prompt.
+    """
+    env_folder = os.environ.get("KG_DAILY_FOLDER")
+    env_filename = os.environ.get("KG_DAILY_FILENAME")
+    env_insert = os.environ.get("KG_DAILY_INSERT_BEFORE")
+
+    folder_raw = (env_folder or (cached.get("folder") if cached else "") or "").strip()
+    if env_filename:
+        filename = env_filename.strip()
+    elif cached:
+        filename = substitute_date(cached.get("filename_pattern", ""), today_str)
+    else:
+        filename = ""
+    insert_before = (env_insert or (cached.get("insert_before") if cached else "") or "").strip()
+
+    if not folder_raw or not filename:
         return None
-    if not folder.is_dir():
-        log(f"daily folder does not exist: {folder}")
-        # Diagnostic hint: if the discovered folder begins with a path
-        # component equal to the vault's own basename, the discovery step
-        # most likely interpreted a directory-tree-style README literally and
-        # prefixed the vault root onto `folder`. We do NOT auto-rewrite —
-        # the README remains source of truth — but surface the likely cause
-        # so the user can clarify their README or the discovery prompt.
-        first = folder_raw.lstrip("/").split("/", 1)[0]
-        if first and first == vault.name:
-            log(
-                f"hint: discovered folder {folder_raw!r} begins with the vault's "
-                f"basename {vault.name!r}; discovery may have included a "
-                f"directory-tree root node that already corresponds to $KG_VAULT"
-            )
+    daily_path = _validate_daily_path(vault, folder_raw, filename, context="pre-resolve")
+    if daily_path is None:
         return None
-    if "/" in filename or filename.startswith("."):
-        log(f"refusing suspicious daily filename: {filename!r}")
-        return None
-    return folder / filename
+    return (daily_path, insert_before)
 
 
 def extract_block(claude_output: str, marker_key: str) -> str | None:
@@ -489,16 +638,38 @@ def main() -> None:
     marker_key = f"{sid8}-{start_hhmm.replace(':', '')}"
 
     readme, template = load_vault_context(vault)
+    today_str = _dt.date.today().isoformat()
 
-    prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_prompt.md"
+    # Try to pre-resolve the daily path from env + cached discovery (no LLM call).
+    # On a hit, we use the compose-only prompt which drops the README and the
+    # discovery rules — a single, smaller prompt, still one LLM call.
+    readme_hash = compute_readme_hash(vault)
+    cached = read_discovery_cache(readme_hash) if readme_hash else None
+    pre = pre_resolve_daily_path(vault, cached, today_str)
+
+    if pre is not None:
+        daily_path, insert_before = pre
+        try:
+            existing_daily = (
+                daily_path.read_text(encoding="utf-8")
+                if daily_path.is_file()
+                else "(file does not exist yet)"
+            )
+        except OSError:
+            existing_daily = "(file does not exist yet)"
+        prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_compose_prompt.md"
+    else:
+        daily_path = None
+        insert_before = ""
+        existing_daily = "(unknown until folder is discovered)"
+        prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_prompt.md"
+
     if not prompt_template_path.is_file():
-        log("prompt template missing")
+        log(f"prompt template missing: {prompt_template_path}")
         emit_continue()
         return
     prompt_template = prompt_template_path.read_text(encoding="utf-8")
 
-    existing_daily = "(unknown until folder is discovered)"
-    today_str = _dt.date.today().isoformat()
     prompt = compose_prompt(
         prompt_template,
         {
@@ -519,12 +690,15 @@ def main() -> None:
         emit_continue()
         return
 
-    discovery = parse_discovery(out)
-    daily_path = resolve_daily_path(vault, discovery)
-    if daily_path is None:
-        log("could not resolve daily-note path (no env override and no discovery from README)")
-        emit_continue()
-        return
+    discovery: dict[str, str] = {}
+    if pre is None:
+        discovery = parse_discovery(out)
+        daily_path = resolve_daily_path(vault, discovery)
+        if daily_path is None:
+            log("could not resolve daily-note path (no env override and no discovery from README)")
+            emit_continue()
+            return
+        insert_before = discovery.get("insert_before", "")
 
     block = extract_block(out, marker_key)
     if not block:
@@ -536,7 +710,7 @@ def main() -> None:
     if topic is None:
         log(f"could not extract topic from block for {marker_key}; using fallback subject")
 
-    changed = upsert_block(daily_path, marker_key, block, insert_before=discovery.get("insert_before", ""))
+    changed = upsert_block(daily_path, marker_key, block, insert_before=insert_before)
     if not changed:
         emit_continue()
         return
@@ -549,6 +723,11 @@ def main() -> None:
         return
     commit_and_push(repo_root, daily_path, marker_key, start_hhmm, topic)
     write_cursor(sid8, end_hhmm)
+
+    # On a successful miss-path run, persist the discovered values so subsequent
+    # Stop hooks (until the README changes) can skip the discovery LLM step.
+    if pre is None and readme_hash and discovery.get("folder") and discovery.get("filename_pattern"):
+        write_discovery_cache(readme_hash, discovery)
 
     try:
         marker = debounce_marker(sid8)

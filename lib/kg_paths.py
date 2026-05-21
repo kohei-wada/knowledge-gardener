@@ -59,3 +59,18 @@ def cursor_path(sid8: str) -> pathlib.Path:
     """
     safe_sid = (sid8 or "unknown")[:8] or "unknown"
     return sessions_dir() / f"{safe_sid}.cursor"
+
+
+def discovery_cache_dir() -> pathlib.Path:
+    """Where auto-recap caches per-vault README-driven discovery results."""
+    return kg_state_dir() / "discovery"
+
+
+def discovery_cache_path(readme_hash: str) -> pathlib.Path:
+    """Path to one vault's cached discovery, keyed by README content hash.
+
+    The hash uniquely identifies a README revision; when the README changes
+    the hash changes, naturally invalidating the cache without any TTL.
+    """
+    safe = "".join(c for c in readme_hash if c.isalnum())[:64] or "unknown"
+    return discovery_cache_dir() / f"{safe}.json"

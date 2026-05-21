@@ -39,11 +39,24 @@ def happy_env(vault: Path, fake_claude: Path) -> dict[str, str]:
     }
 
 
-def make_fake_claude(tmp_path: Path, output: str, exit_code: int = 0, sleep: float = 0.0) -> Path:
-    """Create a fake `claude` binary that ignores its args and prints `output`."""
+def make_fake_claude(
+    tmp_path: Path,
+    output: str,
+    exit_code: int = 0,
+    sleep: float = 0.0,
+    record_prompt_to: Path | None = None,
+) -> Path:
+    """Create a fake `claude` binary that ignores its args and prints `output`.
+
+    When `record_prompt_to` is given, the script also writes argv[2] (the
+    prompt that `auto_recap.py` passes via `claude -p <prompt>`) to that path
+    so tests can assert which prompt template was used.
+    """
     tmp_path.mkdir(parents=True, exist_ok=True)
     script = tmp_path / "fake_claude.sh"
     body = "#!/usr/bin/env bash\n"
+    if record_prompt_to is not None:
+        body += f"printf '%s' \"$2\" > {record_prompt_to.as_posix()!r}\n"
     if sleep:
         body += f"sleep {sleep}\n"
     # use printf to preserve exact content
@@ -149,15 +162,16 @@ def assert_continue(stdout: str) -> None:
 def _canned_recap(
     folder: str = DAILY_FOLDER_REL,
     filename: str | None = None,
+    filename_pattern: str = "{date}.md",
     insert_before: str = "",
     marker_key: str = "testabcd-2100",
     heading_hhmm: str = "21:00",
 ) -> str:
     """Build a canned Claude output: kg-discovery block + kg-recap-sid block.
 
-    Mirrors the new (PR #8) output contract where Claude returns discovery
+    Mirrors the discovery output contract where Claude returns discovery
     metadata alongside the recap. Tests can vary the discovered folder/filename
-    or omit them entirely to exercise the no-discovery path.
+    /filename_pattern or omit them entirely to exercise the no-discovery path.
     """
     if filename is None:
         filename = f"{_dt.date.today().isoformat()}.md"
@@ -166,6 +180,7 @@ def _canned_recap(
         <!-- kg-discovery -->
         folder: {folder}
         filename: {filename}
+        filename_pattern: {filename_pattern}
         insert_before: {insert_before}
         <!-- /kg-discovery -->
         <!-- kg-recap-sid:{marker_key} -->
@@ -678,6 +693,154 @@ def test_rerun_same_window_is_idempotent(tmp_path):
     text = daily_path.read_text()
     # Marker appears exactly twice (one open + one close), not four.
     assert text.count(f"kg-recap-sid:{sid8}-1100") == 2
+
+
+# --- discovery cache --------------------------------------------------------
+
+
+def _readme_hash_for(vault: Path) -> str:
+    """Mirror auto_recap.compute_readme_hash for tests (stdlib only, no import)."""
+    import hashlib
+    parts: list[bytes] = []
+    for candidate in (vault / "README.md", vault.parent / "README.md"):
+        if candidate.is_file():
+            parts.append(candidate.read_bytes())
+            parts.append(b"\x00")
+    return hashlib.sha256(b"".join(parts)).hexdigest()
+
+
+def _cache_path_for(state_home: Path, readme_hash: str) -> Path:
+    return state_home / "knowledge-gardener" / "discovery" / f"{readme_hash}.json"
+
+
+def test_miss_path_writes_discovery_cache(tmp_path):
+    """On a cache miss the full prompt is used and the resulting discovery is cached."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+    fake = make_fake_claude(
+        tmp_path, _canned_recap(marker_key="testabcd-0900", heading_hhmm="09:00")
+    )
+    env = happy_env(vault, fake)
+    del env["KG_DAILY_FOLDER"]  # force the discovery path
+    res = run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    assert res.returncode == 0
+    today = _dt.date.today().isoformat()
+    assert (daily / f"{today}.md").exists()
+
+    cache_path = _cache_path_for(state, _readme_hash_for(vault))
+    assert cache_path.is_file(), "discovery cache should be written on miss-path success"
+    cached = json.loads(cache_path.read_text())
+    assert cached["folder"] == DAILY_FOLDER_REL
+    assert cached["filename_pattern"] == "{date}.md"
+    assert cached["readme_hash"] == _readme_hash_for(vault)
+
+
+def test_hit_path_uses_compose_only_prompt(tmp_path):
+    """A pre-existing cache entry routes the hook through the compose-only prompt."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+
+    # Pre-seed the cache so pre_resolve_daily_path succeeds without an LLM call.
+    readme_hash = _readme_hash_for(vault)
+    cache_path = _cache_path_for(state, readme_hash)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps({
+        "schema": 1,
+        "readme_hash": readme_hash,
+        "folder": DAILY_FOLDER_REL,
+        "filename_pattern": "{date}.md",
+        "insert_before": "",
+        "discovered_at": "2026-01-01T00:00:00",
+    }))
+
+    # Compose-only fake: returns just the recap block, no kg-discovery metadata.
+    recorded = tmp_path / "claude-prompt.txt"
+    fake = make_fake_claude(
+        tmp_path,
+        _canned_recap_no_discovery(marker_key="testabcd-0900", heading_hhmm="09:00"),
+        record_prompt_to=recorded,
+    )
+    env = happy_env(vault, fake)
+    del env["KG_DAILY_FOLDER"]  # would otherwise short-circuit before cache lookup
+    res = run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    assert res.returncode == 0
+
+    today = _dt.date.today().isoformat()
+    assert (daily / f"{today}.md").exists()
+
+    prompt_text = recorded.read_text(encoding="utf-8")
+    assert "## Discovery rules" not in prompt_text, (
+        "compose-only prompt must not contain the discovery rules section"
+    )
+    assert "Vault README" not in prompt_text, (
+        "compose-only prompt must not embed the vault README"
+    )
+    assert "kg-recap-sid:testabcd-0900" in prompt_text or "MARKER_KEY" not in prompt_text
+
+
+def test_readme_change_invalidates_cache(tmp_path):
+    """Editing the README produces a new hash; the old cache entry is bypassed."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+
+    # Cache keyed by a stale hash (the README's current hash gets a different file).
+    stale_hash = "0" * 64
+    stale_cache = _cache_path_for(state, stale_hash)
+    stale_cache.parent.mkdir(parents=True, exist_ok=True)
+    stale_cache.write_text(json.dumps({
+        "schema": 1,
+        "readme_hash": stale_hash,
+        "folder": "stale-folder",  # would resolve to a non-existent path
+        "filename_pattern": "{date}.md",
+        "insert_before": "",
+        "discovered_at": "2026-01-01T00:00:00",
+    }))
+
+    fake = make_fake_claude(
+        tmp_path, _canned_recap(marker_key="testabcd-0900", heading_hhmm="09:00")
+    )
+    env = happy_env(vault, fake)
+    del env["KG_DAILY_FOLDER"]
+    res = run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    assert res.returncode == 0
+
+    today = _dt.date.today().isoformat()
+    assert (daily / f"{today}.md").exists(), "miss-path discovery should have written the daily note"
+    fresh_cache = _cache_path_for(state, _readme_hash_for(vault))
+    assert fresh_cache.is_file(), "a new cache entry keyed by the current README hash should exist"
+    # Stale entry left in place — pruning stale hashes is out of scope; no harm done.
+    assert stale_cache.is_file()
+
+
+def test_corrupted_cache_falls_back_to_discovery(tmp_path):
+    """A malformed cache JSON does not crash the hook; it falls back to the miss path."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+
+    cache_path = _cache_path_for(state, _readme_hash_for(vault))
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text("{not json")
+
+    fake = make_fake_claude(
+        tmp_path, _canned_recap(marker_key="testabcd-0900", heading_hhmm="09:00")
+    )
+    env = happy_env(vault, fake)
+    del env["KG_DAILY_FOLDER"]
+    res = run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    assert res.returncode == 0
+
+    today = _dt.date.today().isoformat()
+    assert (daily / f"{today}.md").exists()
+    # cache file was overwritten with a valid entry on the miss-path success
+    cached = json.loads(cache_path.read_text())
+    assert cached.get("readme_hash") == _readme_hash_for(vault)
+
+
+# --- end discovery cache ----------------------------------------------------
 
 
 def test_legacy_bare_sid_block_left_untouched(tmp_path):

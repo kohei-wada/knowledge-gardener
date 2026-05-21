@@ -13,15 +13,15 @@ folder: <path relative to the vault root>
 filename: <filename for today's daily note>
 insert_before: <heading line the recap block must precede, or empty to append at EOF>
 <!-- /kg-discovery -->
-<!-- kg-recap-sid:{{SID8}} -->
+<!-- kg-recap-sid:{{MARKER_KEY}} -->
 ## Session {{START_HHMM}} 〜 <topic>
 
 …body…
 
-<!-- /kg-recap-sid:{{SID8}} -->
+<!-- /kg-recap-sid:{{MARKER_KEY}} -->
 ```
 
-- Both block boundaries (`<!-- kg-discovery -->`, `<!-- /kg-discovery -->`, `<!-- kg-recap-sid:{{SID8}} -->`, `<!-- /kg-recap-sid:{{SID8}} -->`) MUST each be on their own line.
+- Both block boundaries (`<!-- kg-discovery -->`, `<!-- /kg-discovery -->`, `<!-- kg-recap-sid:{{MARKER_KEY}} -->`, `<!-- /kg-recap-sid:{{MARKER_KEY}} -->`) MUST each be on their own line.
 - Do NOT include any prose before the first marker or after the last marker. No explanation, no preamble, no code fence around the blocks. Just the blocks back-to-back.
 - Topic should be a short Japanese phrase (≤30 chars) summarizing the work, inferred from the captured tool calls (files touched, bash commands, agent dispatches).
 
@@ -71,7 +71,7 @@ Follow the daily-note structure documented in the vault README. Required structu
 2. **Inference is allowed for Keep/Problem/Try** — these are interpretations of the captured actions, not transcription. Reason about what the action pattern implies (e.g. many edits to one file → focused work; a `git push` after a release script → shipped).
 3. **No links of any kind unless they appear verbatim in the aggregator output or in the existing daily note above.** Do not invent markdown link paths like `[label](some/path.md)` based on plausible inference, even if you mention a concept by name. If a path is not literally shown in the inputs, write the concept as plain text.
 4. **Japanese**. The vault is Japanese. Use Japanese unless the README explicitly says otherwise.
-5. **Idempotency**. The marker `<!-- kg-recap-sid:{{SID8}} -->` keys this block to one specific session. Don't include any other sid markers.
+5. **Marker is windowed**. The marker `<!-- kg-recap-sid:{{MARKER_KEY}} -->` keys this block to one specific Stop-event window inside the session. The same session may already have earlier blocks in today's daily note with different `-HHMM` suffixes — leave them alone. Emit only the one block keyed by `{{MARKER_KEY}}`.
 
 ## Inputs
 

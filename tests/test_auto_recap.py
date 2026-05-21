@@ -505,7 +505,8 @@ def test_debounce_skips_rapid_reinvocation(tmp_path):
 
 # --- git commit -------------------------------------------------------------
 
-def test_commit_created_in_vault_repo(tmp_path):
+def test_commit_subject_includes_topic_from_block_heading(tmp_path):
+    """Commit subject should pull `<topic>` from the block's `## Session HH:MM 〜 <topic>` heading."""
     vault, daily, repo = make_vault(tmp_path)
     state = tmp_path / "state"
     write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
@@ -515,7 +516,6 @@ def test_commit_created_in_vault_repo(tmp_path):
         env_extra=happy_env(vault, fake),
         state_home=state,
     )
-    # most-recent commit subject should match our template
     proc = subprocess.run(
         ["git", "log", "-1", "--pretty=%s"],
         cwd=repo,
@@ -524,7 +524,45 @@ def test_commit_created_in_vault_repo(tmp_path):
         check=True,
     )
     today = _dt.date.today().isoformat()
-    assert proc.stdout.startswith(f"water: {today} daily auto-recap (testabcd-0900)")
+    # canned recap's heading is `## Session 09:00 〜 自動 recap テスト` → topic = `自動 recap テスト`
+    assert proc.stdout.strip() == f"water: {today} 09:00 〜 自動 recap テスト"
+
+
+def test_commit_subject_falls_back_when_heading_missing(tmp_path):
+    """If the block has no `## Session HH:MM 〜 <topic>` heading, fall back to marker-key form."""
+    vault, daily, repo = make_vault(tmp_path)
+    state = tmp_path / "state"
+    write_session_log(state, "noheadng", ["09:00 tool=Edit target=a.md"])
+    today = _dt.date.today().isoformat()
+    # Build a recap block without the conventional `## Session ... 〜 ...` heading.
+    headless_block = textwrap.dedent(
+        f"""\
+        <!-- kg-discovery -->
+        folder: {DAILY_FOLDER_REL}
+        filename: {today}.md
+        insert_before:
+        <!-- /kg-discovery -->
+        <!-- kg-recap-sid:noheadng-0900 -->
+        ## Some other heading
+
+        body without the expected session line.
+        <!-- /kg-recap-sid:noheadng-0900 -->
+        """
+    )
+    fake = make_fake_claude(tmp_path, headless_block)
+    run_hook(
+        {"session_id": "noheadng-uuid"},
+        env_extra=happy_env(vault, fake),
+        state_home=state,
+    )
+    proc = subprocess.run(
+        ["git", "log", "-1", "--pretty=%s"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert proc.stdout.strip() == f"water: {today} daily auto-recap (noheadng-0900)"
 
 
 # --- per-Stop block accumulation --------------------------------------------

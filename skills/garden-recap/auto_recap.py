@@ -291,6 +291,19 @@ def resolve_daily_path(vault: pathlib.Path, discovery: dict[str, str]) -> pathli
         return None
     if not folder.is_dir():
         log(f"daily folder does not exist: {folder}")
+        # Diagnostic hint: if the discovered folder begins with a path
+        # component equal to the vault's own basename, the discovery step
+        # most likely interpreted a directory-tree-style README literally and
+        # prefixed the vault root onto `folder`. We do NOT auto-rewrite —
+        # the README remains source of truth — but surface the likely cause
+        # so the user can clarify their README or the discovery prompt.
+        first = folder_raw.lstrip("/").split("/", 1)[0]
+        if first and first == vault.name:
+            log(
+                f"hint: discovered folder {folder_raw!r} begins with the vault's "
+                f"basename {vault.name!r}; discovery may have included a "
+                f"directory-tree root node that already corresponds to $KG_VAULT"
+            )
         return None
     if "/" in filename or filename.startswith("."):
         log(f"refusing suspicious daily filename: {filename!r}")

@@ -310,6 +310,39 @@ def test_no_op_when_daily_folder_path_invalid(tmp_path):
     assert not (daily / f"{today}.md").exists()
 
 
+def test_logs_hint_when_discovery_prefixes_vault_basename(tmp_path):
+    """When discovery emits folder=<vault.basename>/<sub>, log a diagnostic hint.
+
+    Reproduces the failure mode where a tree-format README's top node (which
+    represents the vault root itself) is mistakenly included as a path prefix,
+    producing a doubled path that does not exist. Auto-recap stays a no-op,
+    but the log gains a hint line so the user can clarify their README or
+    the discovery prompt.
+    """
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+    bad_folder = f"{vault.name}/{DAILY_FOLDER_REL}"
+    fake = make_fake_claude(
+        tmp_path,
+        _canned_recap(folder=bad_folder, marker_key="testabcd-0900", heading_hhmm="09:00"),
+    )
+    env = happy_env(vault, fake)
+    del env["KG_DAILY_FOLDER"]  # force the discovery path
+    res = run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    assert res.returncode == 0
+    assert_continue(res.stdout)
+    today = _dt.date.today().isoformat()
+    assert not (daily / f"{today}.md").exists()
+    log_path = (
+        tmp_path / "fakehome" / ".local" / "state" / "knowledge-gardener" / "auto-recap.log"
+    )
+    log_content = log_path.read_text(encoding="utf-8")
+    assert "daily folder does not exist" in log_content
+    assert "hint:" in log_content
+    assert vault.name in log_content
+
+
 def test_env_override_wins_over_discovery(tmp_path):
     """When both env KG_DAILY_FOLDER and kg-discovery folder are set, env wins."""
     vault, _, _ = make_vault(tmp_path)

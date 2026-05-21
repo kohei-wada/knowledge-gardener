@@ -29,9 +29,17 @@ insert_before: <heading line the recap block must precede, or empty to append at
 
 Derive `folder`, `filename`, and `insert_before` **only from what the vault README documents**. Do not invent paths.
 
-- **folder**: the README's documented daily-note folder, expressed relative to the vault root (no leading `/`). Example shapes you might see: `04_DailyNotes`, `daily/`, `journal/Daily`. Use exactly what the README declares; never default to a common name.
+- **folder**: the README's documented daily-note folder, expressed relative to the vault root (no leading `/`). Use exactly what the README declares; never default to a common name and never invent a folder the README does not mention.
 - **filename**: today's filename per the README's filename convention. Today's date is `{{TODAY}}`. If the README says `YYYY-MM-DD.md`, emit `{{TODAY}}.md`. Use whatever the README declares.
 - **insert_before**: optional. If the README documents a heading that the recap block must precede (e.g. a trailing "関連リンク" / "Related" / "Carry over" section), emit the exact heading line (including the `##` prefix). If the README is silent on insertion order, leave the value empty — the script will append at end of file.
+
+**Tree-format READMEs**: when the README documents folder layout via a directory tree (ASCII or otherwise), the topmost directory in the tree often represents the vault root itself — i.e. it stands for `$KG_VAULT` rather than a subdirectory under it. Do NOT include that top node as a prefix on `folder`. Schematic example:
+
+    <vault-root>/
+    ├── <daily-folder>/
+    ├── ...
+
+where `<vault-root>/` is the same path as `$KG_VAULT`. Correct: `folder: <daily-folder>`. Wrong: `folder: <vault-root>/<daily-folder>`. The runtime joins `folder` to `$KG_VAULT`, so a vault-root prefix would produce a doubled path that does not exist.
 
 If the README does not document the daily-note folder or filename rule, leave both `folder` and `filename` empty. The script will treat that as a no-op (it will NOT pick a default).
 

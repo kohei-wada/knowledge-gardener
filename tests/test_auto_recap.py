@@ -146,7 +146,13 @@ def assert_continue(stdout: str) -> None:
     assert obj.get("suppressOutput") is True
 
 
-def _canned_recap(folder: str = DAILY_FOLDER_REL, filename: str | None = None, insert_before: str = "") -> str:
+def _canned_recap(
+    folder: str = DAILY_FOLDER_REL,
+    filename: str | None = None,
+    insert_before: str = "",
+    marker_key: str = "testabcd-2100",
+    heading_hhmm: str = "21:00",
+) -> str:
     """Build a canned Claude output: kg-discovery block + kg-recap-sid block.
 
     Mirrors the new (PR #8) output contract where Claude returns discovery
@@ -162,8 +168,8 @@ def _canned_recap(folder: str = DAILY_FOLDER_REL, filename: str | None = None, i
         filename: {filename}
         insert_before: {insert_before}
         <!-- /kg-discovery -->
-        <!-- kg-recap-sid:testabcd -->
-        ## Session 21:00 〜 自動 recap テスト
+        <!-- kg-recap-sid:{marker_key} -->
+        ## Session {heading_hhmm} 〜 自動 recap テスト
 
         自動生成された session ブロックの例。
 
@@ -178,17 +184,20 @@ def _canned_recap(folder: str = DAILY_FOLDER_REL, filename: str | None = None, i
         ### Try
 
         - 次回も green
-        <!-- /kg-recap-sid:testabcd -->
+        <!-- /kg-recap-sid:{marker_key} -->
         """
     )
 
 
-def _canned_recap_no_discovery() -> str:
+def _canned_recap_no_discovery(
+    marker_key: str = "testabcd-2100",
+    heading_hhmm: str = "21:00",
+) -> str:
     """Canned output with NO kg-discovery block — exercises the no-discovery path."""
     return textwrap.dedent(
-        """\
-        <!-- kg-recap-sid:testabcd -->
-        ## Session 21:00 〜 自動 recap テスト
+        f"""\
+        <!-- kg-recap-sid:{marker_key} -->
+        ## Session {heading_hhmm} 〜 自動 recap テスト
 
         自動生成された session ブロックの例。
 
@@ -203,7 +212,7 @@ def _canned_recap_no_discovery() -> str:
         ### Try
 
         - 次回も green
-        <!-- /kg-recap-sid:testabcd -->
+        <!-- /kg-recap-sid:{marker_key} -->
         """
     )
 
@@ -260,7 +269,7 @@ def test_writes_via_discovery_when_env_unset(tmp_path):
     vault, daily, _ = make_vault(tmp_path)
     state = tmp_path / "state"
     write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
-    fake = make_fake_claude(tmp_path, CANNED_RECAP)
+    fake = make_fake_claude(tmp_path, _canned_recap(marker_key="testabcd-0900", heading_hhmm="09:00"))
     env = happy_env(vault, fake)
     # remove both env keys so only the kg-discovery block can resolve the path
     del env["KG_DAILY_FOLDER"]
@@ -310,7 +319,7 @@ def test_env_override_wins_over_discovery(tmp_path):
     state = tmp_path / "state"
     write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
     # Claude discovers DAILY_FOLDER_REL ("daily") but env points at "alt-daily"
-    fake = make_fake_claude(tmp_path, _canned_recap(folder=DAILY_FOLDER_REL))
+    fake = make_fake_claude(tmp_path, _canned_recap(folder=DAILY_FOLDER_REL, marker_key="testabcd-0900", heading_hhmm="09:00"))
     env = happy_env(vault, fake)
     env["KG_DAILY_FOLDER"] = "alt-daily"
     # the discovery's filename still drives the filename (no KG_DAILY_FILENAME set)
@@ -331,12 +340,12 @@ def test_insert_before_anchor_places_block_above_heading(tmp_path):
         "## Existing top\n\nsome body\n\n## Carry over\n\n- left for tomorrow\n",
         encoding="utf-8",
     )
-    fake = make_fake_claude(tmp_path, CANNED_RECAP)
+    fake = make_fake_claude(tmp_path, _canned_recap(marker_key="testabcd-0900", heading_hhmm="09:00"))
     env = happy_env(vault, fake)
     env["KG_DAILY_INSERT_BEFORE"] = "## Carry over"
     run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
     content = (daily / f"{today}.md").read_text(encoding="utf-8")
-    block_idx = content.index("<!-- kg-recap-sid:testabcd -->")
+    block_idx = content.index("<!-- kg-recap-sid:testabcd-0900 -->")
     anchor_idx = content.index("## Carry over")
     assert block_idx < anchor_idx, "recap block should land before the anchor heading"
     assert "left for tomorrow" in content, "anchor section content must survive"
@@ -352,7 +361,7 @@ def test_writes_session_block_on_happy_path(tmp_path):
         "testabcd",
         ["09:00 tool=Edit target=a.md", "09:05 tool=Bash target=git commit -m x"],
     )
-    fake = make_fake_claude(tmp_path, CANNED_RECAP)
+    fake = make_fake_claude(tmp_path, _canned_recap(marker_key="testabcd-0900", heading_hhmm="09:00"))
     res = run_hook(
         {"session_id": "testabcd-uuid"},
         env_extra=happy_env(vault, fake),
@@ -364,33 +373,39 @@ def test_writes_session_block_on_happy_path(tmp_path):
     note = daily / f"{today}.md"
     assert note.exists()
     content = note.read_text()
-    assert "<!-- kg-recap-sid:testabcd -->" in content
+    assert "<!-- kg-recap-sid:testabcd-0900 -->" in content
     assert "自動 recap テスト" in content
-    assert "<!-- /kg-recap-sid:testabcd -->" in content
+    assert "<!-- /kg-recap-sid:testabcd-0900 -->" in content
 
 
 def test_idempotent_replaces_existing_block(tmp_path):
     vault, daily, repo = make_vault(tmp_path)
     state = tmp_path / "state"
     write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
-    fake1 = make_fake_claude(tmp_path / "v1", CANNED_RECAP)
+    canned = _canned_recap(marker_key="testabcd-0900", heading_hhmm="09:00")
+    fake1 = make_fake_claude(tmp_path / "v1", canned)
     env = happy_env(vault, fake1)
     run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
 
     # second invocation with different body but same sid → should REPLACE
-    updated_recap = CANNED_RECAP.replace("自動 recap テスト", "更新後のテスト")
+    updated_recap = canned.replace("自動 recap テスト", "更新後のテスト")
     fake2 = make_fake_claude(tmp_path / "v2", updated_recap)
-    # bypass debounce by clearing marker
-    marker = state / "knowledge-gardener" / "sessions" / ".last-recap-testabcd"
-    if marker.exists():
-        marker.unlink()
+    # bypass debounce by clearing marker; also clear cursor so aggregator
+    # re-processes the full log and produces the same marker_key (testabcd-0900)
+    sessions = state / "knowledge-gardener" / "sessions"
+    debounce = sessions / ".last-recap-testabcd"
+    if debounce.exists():
+        debounce.unlink()
+    cursor = sessions / "testabcd.cursor"
+    if cursor.exists():
+        cursor.unlink()
 
     env["KG_AUTO_RECAP_CLAUDE_CMD"] = str(fake2)
     run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
     today = _dt.date.today().isoformat()
     content = (daily / f"{today}.md").read_text()
     # one occurrence of the marker pair, content updated
-    assert content.count("<!-- kg-recap-sid:testabcd -->") == 1
+    assert content.count("<!-- kg-recap-sid:testabcd-0900 -->") == 1
     assert "更新後のテスト" in content
     assert "自動 recap テスト" not in content
 
@@ -469,7 +484,8 @@ def test_debounce_skips_rapid_reinvocation(tmp_path):
     vault, daily, _ = make_vault(tmp_path)
     state = tmp_path / "state"
     write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
-    fake = make_fake_claude(tmp_path, CANNED_RECAP)
+    canned = _canned_recap(marker_key="testabcd-0900", heading_hhmm="09:00")
+    fake = make_fake_claude(tmp_path, canned)
     env = happy_env(vault, fake)
     run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
     today = _dt.date.today().isoformat()
@@ -478,7 +494,7 @@ def test_debounce_skips_rapid_reinvocation(tmp_path):
     # immediate re-invocation → debounce should skip
     time.sleep(0.1)
     # alter the fake output so we can detect if it ran
-    fake2 = make_fake_claude(tmp_path / "v2", CANNED_RECAP.replace("自動 recap テスト", "should not appear"))
+    fake2 = make_fake_claude(tmp_path / "v2", canned.replace("自動 recap テスト", "should not appear"))
     env["KG_AUTO_RECAP_CLAUDE_CMD"] = str(fake2)
     run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
 
@@ -493,7 +509,7 @@ def test_commit_created_in_vault_repo(tmp_path):
     vault, daily, repo = make_vault(tmp_path)
     state = tmp_path / "state"
     write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
-    fake = make_fake_claude(tmp_path, CANNED_RECAP)
+    fake = make_fake_claude(tmp_path, _canned_recap(marker_key="testabcd-0900", heading_hhmm="09:00"))
     run_hook(
         {"session_id": "testabcd-uuid"},
         env_extra=happy_env(vault, fake),
@@ -508,4 +524,115 @@ def test_commit_created_in_vault_repo(tmp_path):
         check=True,
     )
     today = _dt.date.today().isoformat()
-    assert proc.stdout.startswith(f"water: {today} daily auto-recap (sid:testabcd)")
+    assert proc.stdout.startswith(f"water: {today} daily auto-recap (testabcd-0900)")
+
+
+# --- per-Stop block accumulation --------------------------------------------
+
+def test_two_stops_accumulate_separate_blocks(tmp_path):
+    """Second Stop with new activity → new block beside the first, not in place of it."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    sid8 = "twostops"
+    today = _dt.date.today()
+
+    # First Stop: activity at 09:00 only.
+    write_session_log(state, sid8, ["09:00 tool=Edit target=a.md"])
+    fake1 = make_fake_claude(
+        tmp_path / "fake1",
+        _canned_recap(marker_key=f"{sid8}-0900", heading_hhmm="09:00"),
+    )
+    res = run_hook(
+        {"session_id": sid8 + "-uuid"},
+        env_extra=happy_env(vault, fake1),
+        state_home=state,
+    )
+    assert res.returncode == 0
+    daily_path = daily / f"{today.isoformat()}.md"
+    first_text = daily_path.read_text()
+    assert f"kg-recap-sid:{sid8}-0900" in first_text
+
+    # Second Stop: add a 10:30 entry, clear debounce marker.
+    sessions = state / "knowledge-gardener" / "sessions"
+    log_path = sessions / f"{today.isoformat()}-{sid8}.log"
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("10:30 tool=Edit target=b.md\n")
+    debounce = sessions / f".last-recap-{sid8}"
+    if debounce.exists():
+        debounce.unlink()
+
+    fake2 = make_fake_claude(
+        tmp_path / "fake2",
+        _canned_recap(marker_key=f"{sid8}-1030", heading_hhmm="10:30"),
+    )
+    res = run_hook(
+        {"session_id": sid8 + "-uuid"},
+        env_extra=happy_env(vault, fake2),
+        state_home=state,
+    )
+    assert res.returncode == 0
+    second_text = daily_path.read_text()
+    # Both blocks coexist.
+    assert f"kg-recap-sid:{sid8}-0900" in second_text
+    assert f"kg-recap-sid:{sid8}-1030" in second_text
+    # Cursor advanced to the second block's end.
+    cursor = sessions / f"{sid8}.cursor"
+    assert cursor.read_text().strip() == "10:30"
+
+
+def test_rerun_same_window_is_idempotent(tmp_path):
+    """Stop hook re-runs with no new activity → no duplicate marker in the daily."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    sid8 = "idemp012"
+    today = _dt.date.today()
+
+    write_session_log(state, sid8, ["11:00 tool=Edit target=c.md"])
+    fake = make_fake_claude(
+        tmp_path / "fake",
+        _canned_recap(marker_key=f"{sid8}-1100", heading_hhmm="11:00"),
+    )
+    # First run.
+    run_hook({"session_id": sid8 + "-uuid"}, env_extra=happy_env(vault, fake), state_home=state)
+    # Clear debounce to force the second run through the pipeline.
+    sessions = state / "knowledge-gardener" / "sessions"
+    debounce = sessions / f".last-recap-{sid8}"
+    if debounce.exists():
+        debounce.unlink()
+    # Second run with no new log activity → cursor at 11:00 → aggregator
+    # filters everything out → no-op. The daily must not gain a duplicate.
+    run_hook({"session_id": sid8 + "-uuid"}, env_extra=happy_env(vault, fake), state_home=state)
+
+    daily_path = daily / f"{today.isoformat()}.md"
+    text = daily_path.read_text()
+    # Marker appears exactly twice (one open + one close), not four.
+    assert text.count(f"kg-recap-sid:{sid8}-1100") == 2
+
+
+def test_legacy_bare_sid_block_left_untouched(tmp_path):
+    """A daily note that already contains a legacy <!-- kg-recap-sid:abc12345 --> block
+    (without HHMM suffix) must not be matched, replaced, or collided with by the new code."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    sid8 = "leg00001"
+    today = _dt.date.today()
+    daily_path = daily / f"{today.isoformat()}.md"
+    # Seed a legacy block (note: not the sid we're about to write under).
+    legacy_block = (
+        "<!-- kg-recap-sid:oldlegcy -->\n"
+        "## Session legacy 〜 do not touch\n"
+        "legacy body\n"
+        "<!-- /kg-recap-sid:oldlegcy -->\n"
+    )
+    daily_path.write_text(legacy_block, encoding="utf-8")
+
+    write_session_log(state, sid8, ["14:00 tool=Edit target=d.md"])
+    fake = make_fake_claude(
+        tmp_path / "fake",
+        _canned_recap(marker_key=f"{sid8}-1400", heading_hhmm="14:00"),
+    )
+    run_hook({"session_id": sid8 + "-uuid"}, env_extra=happy_env(vault, fake), state_home=state)
+
+    text = daily_path.read_text()
+    assert "kg-recap-sid:oldlegcy" in text  # legacy preserved
+    assert f"kg-recap-sid:{sid8}-1400" in text  # new block added

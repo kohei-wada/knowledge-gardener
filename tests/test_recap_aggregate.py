@@ -342,3 +342,17 @@ def test_since_malformed_returns_exit_2(tmp_path):
     assert "invalid --since" in res.stderr
     res = run(["--sid", "badsince", "--since", "garbage"], state_home=tmp_path)
     assert res.returncode == 2
+
+
+# --- cursor path helper -----------------------------------------------------
+
+def test_cursor_path_under_sessions_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    # Re-import the module function fresh — kg_paths reads env at call time,
+    # not at import time.
+    sys.path.insert(0, str(REPO_ROOT / "lib"))
+    import importlib
+    import kg_paths
+    importlib.reload(kg_paths)
+    p = kg_paths.cursor_path("abc12345")
+    assert p == tmp_path / "knowledge-gardener" / "sessions" / "abc12345.cursor"

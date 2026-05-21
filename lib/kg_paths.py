@@ -48,3 +48,14 @@ def debounce_marker(sid8: str) -> pathlib.Path:
     """Path to the per-session auto-recap debounce marker."""
     safe_sid = (sid8 or "unknown")[:8] or "unknown"
     return sessions_dir() / f".last-recap-{safe_sid}"
+
+
+def cursor_path(sid8: str) -> pathlib.Path:
+    """Path to the per-session recap cursor file.
+
+    Holds a single HH:MM line — the last log entry included in the most
+    recent successfully-written block. Read by auto_recap.py to scope the
+    next aggregation window via --since.
+    """
+    safe_sid = (sid8 or "unknown")[:8] or "unknown"
+    return sessions_dir() / f"{safe_sid}.cursor"

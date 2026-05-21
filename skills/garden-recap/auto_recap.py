@@ -22,6 +22,7 @@ import traceback
 # Shared path helpers. auto_recap.py lives at skills/garden-recap/, so the
 # repo-root lib/ is two parents up.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
+from kg_paths import cursor_path as _shared_cursor_path  # noqa: E402
 from kg_paths import debounce_marker as _shared_debounce_marker  # noqa: E402
 from kg_paths import kg_state_dir, session_log_path as _shared_session_log_path  # noqa: E402
 
@@ -53,6 +54,34 @@ def debounce_marker(sid8: str) -> pathlib.Path:
     return _shared_debounce_marker(sid8)
 
 
+def cursor_path(sid8: str) -> pathlib.Path:
+    return _shared_cursor_path(sid8)
+
+
+SINCE_RE = re.compile(r"^\d{2}:\d{2}$")
+
+
+def read_cursor(sid8: str) -> str | None:
+    p = cursor_path(sid8)
+    try:
+        text = p.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not SINCE_RE.match(text):
+        log(f"ignoring malformed cursor at {p}: {text!r}")
+        return None
+    return text
+
+
+def write_cursor(sid8: str, hhmm: str) -> None:
+    p = cursor_path(sid8)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        p.write_text(hhmm + "\n", encoding="utf-8")
+    except OSError as e:
+        log(f"cursor write failed: {e!r}")
+
+
 def plugin_root() -> pathlib.Path:
     env = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if env:
@@ -69,18 +98,18 @@ def vault_root() -> pathlib.Path | None:
     return p if p.is_dir() else None
 
 
-def run_aggregator(sid8: str) -> str | None:
+SESSION_HEADER_RE = re.compile(r"^## Session (\d{2}:\d{2}) - (\d{2}:\d{2})", re.MULTILINE)
+
+
+def run_aggregator(sid8: str, since: str | None = None) -> str | None:
     script = plugin_root() / "skills" / "garden-recap" / "recap_aggregate.py"
     if not script.is_file():
         return None
+    args = [sys.executable, str(script), "--sid", sid8]
+    if since:
+        args += ["--since", since]
     try:
-        proc = subprocess.run(
-            [sys.executable, str(script), "--sid", sid8],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=30, check=False)
     except (OSError, subprocess.TimeoutExpired) as e:
         log(f"aggregator failed: {e!r}")
         return None
@@ -89,7 +118,19 @@ def run_aggregator(sid8: str) -> str | None:
         return None
     if "0 session(s) found" in proc.stdout:
         return None
+    # When --since filters out everything we still get 1 session block but
+    # with `--:--` markers and 0 captured tool calls. Treat that as a no-op.
+    if "Session --:-- - --:--" in proc.stdout or "0 captured tool calls" in proc.stdout:
+        return None
     return proc.stdout
+
+
+def parse_session_window(aggregator_output: str) -> tuple[str, str] | None:
+    """Extract (start_hhmm, end_hhmm) from the aggregator's Session header."""
+    m = SESSION_HEADER_RE.search(aggregator_output)
+    if not m:
+        return None
+    return m.group(1), m.group(2)
 
 
 def read_text(path: pathlib.Path, limit: int = 20_000) -> str:
@@ -168,6 +209,9 @@ def call_claude(prompt: str, timeout: int) -> str | None:
     return proc.stdout
 
 
+# Marker format: <!-- kg-recap-sid:{sid8}-{HHMM} -->
+# sid8 is the 8-char session prefix; HHMM is colon-stripped (e.g. 0957)
+# because the regex character class below does not accept ':'.
 MARKER_OPEN_RE = re.compile(r"<!--\s*kg-recap-sid:([A-Za-z0-9_-]+)\s*-->")
 _DISCOVERY_BLOCK_RE = re.compile(
     r"<!--\s*kg-discovery\s*-->(.*?)<!--\s*/kg-discovery\s*-->",
@@ -219,9 +263,9 @@ def resolve_daily_path(vault: pathlib.Path, discovery: dict[str, str]) -> pathli
     return folder / filename
 
 
-def extract_block(claude_output: str, sid8: str) -> str | None:
-    open_re = re.compile(rf"<!--\s*kg-recap-sid:{re.escape(sid8)}\s*-->", re.IGNORECASE)
-    close_re = re.compile(rf"<!--\s*/kg-recap-sid:{re.escape(sid8)}\s*-->", re.IGNORECASE)
+def extract_block(claude_output: str, marker_key: str) -> str | None:
+    open_re = re.compile(rf"<!--\s*kg-recap-sid:{re.escape(marker_key)}\s*-->", re.IGNORECASE)
+    close_re = re.compile(rf"<!--\s*/kg-recap-sid:{re.escape(marker_key)}\s*-->", re.IGNORECASE)
     om = open_re.search(claude_output)
     cm = close_re.search(claude_output)
     if not om or not cm or cm.start() <= om.start():
@@ -230,9 +274,14 @@ def extract_block(claude_output: str, sid8: str) -> str | None:
 
 
 def upsert_block(
-    daily_path: pathlib.Path, sid8: str, block: str, insert_before: str = ""
+    daily_path: pathlib.Path, marker_key: str, block: str, insert_before: str = ""
 ) -> bool:
     """Insert or replace the recap block in today's daily note. Returns True if file changed.
+
+    Idempotency: a block with the EXACT same marker_key (sid8-HHMM) is
+    replaced in place — needed for retry after pre-commit failure. Blocks
+    keyed by any other marker_key are left untouched, so prior Stop events'
+    blocks accumulate chronologically.
 
     Insertion anchor: when `insert_before` (or env var KG_DAILY_INSERT_BEFORE
     as override) is non-empty, treat its value as a literal heading and insert
@@ -240,8 +289,8 @@ def upsert_block(
     are empty, append at EOF.
     """
     existing = daily_path.read_text(encoding="utf-8") if daily_path.exists() else ""
-    open_re = re.compile(rf"<!--\s*kg-recap-sid:{re.escape(sid8)}\s*-->", re.IGNORECASE)
-    close_re = re.compile(rf"<!--\s*/kg-recap-sid:{re.escape(sid8)}\s*-->", re.IGNORECASE)
+    open_re = re.compile(rf"<!--\s*kg-recap-sid:{re.escape(marker_key)}\s*-->", re.IGNORECASE)
+    close_re = re.compile(rf"<!--\s*/kg-recap-sid:{re.escape(marker_key)}\s*-->", re.IGNORECASE)
     om = open_re.search(existing)
     cm = close_re.search(existing)
     if om and cm and cm.start() > om.start():
@@ -280,7 +329,7 @@ def run_git(args: list[str], cwd: pathlib.Path) -> tuple[int, str, str]:
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def commit_and_push(repo_root: pathlib.Path, daily_path: pathlib.Path, sid8: str) -> None:
+def commit_and_push(repo_root: pathlib.Path, daily_path: pathlib.Path, marker_key: str) -> None:
     rel = daily_path.relative_to(repo_root) if str(daily_path).startswith(str(repo_root)) else daily_path
     # pre-commit (best-effort)
     if (repo_root / ".pre-commit-config.yaml").is_file():
@@ -301,14 +350,14 @@ def commit_and_push(repo_root: pathlib.Path, daily_path: pathlib.Path, sid8: str
         return
     today = _dt.date.today().isoformat()
     code, _, err = run_git(
-        ["commit", "-m", f"water: {today} daily auto-recap (sid:{sid8})"],
+        ["commit", "-m", f"water: {today} daily auto-recap ({marker_key})"],
         repo_root,
     )
     if code != 0:
         log(f"git commit failed: {err[:200]!r}")
         return
     if os.environ.get("KG_AUTO_RECAP_NO_PUSH") == "1":
-        log(f"push skipped (KG_AUTO_RECAP_NO_PUSH=1) for {today} sid:{sid8}")
+        log(f"push skipped (KG_AUTO_RECAP_NO_PUSH=1) for {today} {marker_key}")
         return
     code, _, err = run_git(["push"], repo_root)
     if code != 0:
@@ -370,10 +419,19 @@ def main() -> None:
         emit_continue()
         return
 
-    aggregator_output = run_aggregator(sid8)
+    since = read_cursor(sid8)
+    aggregator_output = run_aggregator(sid8, since=since)
     if not aggregator_output:
         emit_continue()
         return
+
+    window = parse_session_window(aggregator_output)
+    if window is None:
+        log("could not parse Session header from aggregator output")
+        emit_continue()
+        return
+    start_hhmm, end_hhmm = window
+    marker_key = f"{sid8}-{start_hhmm.replace(':', '')}"
 
     readme, template = load_vault_context(vault)
 
@@ -384,18 +442,13 @@ def main() -> None:
         return
     prompt_template = prompt_template_path.read_text(encoding="utf-8")
 
-    # We don't know the daily path until Claude discovers it from the README,
-    # so pass an existing-daily placeholder. Claude doesn't need the prior
-    # daily content for discovery; idempotency on multiple Stop events comes
-    # from the sid-keyed marker in upsert_block, not the prompt.
     existing_daily = "(unknown until folder is discovered)"
-
-    start_hhmm = _dt.datetime.now().strftime("%H:%M")
     today_str = _dt.date.today().isoformat()
     prompt = compose_prompt(
         prompt_template,
         {
             "SID8": sid8,
+            "MARKER_KEY": marker_key,
             "START_HHMM": start_hhmm,
             "TODAY": today_str,
             "VAULT_README": readme,
@@ -418,26 +471,28 @@ def main() -> None:
         emit_continue()
         return
 
-    block = extract_block(out, sid8)
+    block = extract_block(out, marker_key)
     if not block:
         log("claude output missing recap markers")
         emit_continue()
         return
 
-    changed = upsert_block(daily_path, sid8, block, insert_before=discovery.get("insert_before", ""))
+    changed = upsert_block(daily_path, marker_key, block, insert_before=discovery.get("insert_before", ""))
     if not changed:
         emit_continue()
         return
 
     repo_root = find_repo_root(vault)
     if repo_root is None:
-        log("vault is not in a git repo — skipping commit")
+        log("vault is not in a git repo — skipping commit; cursor still updated")
+        write_cursor(sid8, end_hhmm)
         emit_continue()
         return
-    commit_and_push(repo_root, daily_path, sid8)
+    commit_and_push(repo_root, daily_path, marker_key)
+    write_cursor(sid8, end_hhmm)
 
-    # debounce update
     try:
+        marker = debounce_marker(sid8)
         marker.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         marker.touch()
     except OSError:

@@ -69,8 +69,21 @@ def session_id_from_path(path: pathlib.Path, date: _dt.date) -> str:
     return stem[len(prefix):] if stem.startswith(prefix) else stem
 
 
-def aggregate_session(path: pathlib.Path, date: _dt.date) -> dict:
+SINCE_RE = re.compile(r"^\d{2}:\d{2}$")
+
+
+def _validate_since(since: str | None) -> str | None:
+    if since is None:
+        return None
+    if not SINCE_RE.match(since):
+        raise ValueError(f"invalid --since: {since!r} (expected HH:MM)")
+    return since
+
+
+def aggregate_session(path: pathlib.Path, date: _dt.date, since: str | None = None) -> dict:
     entries = parse_log(path)
+    if since is not None:
+        entries = [e for e in entries if e["hhmm"] > since]
     sid8 = session_id_from_path(path, date)
 
     file_counts: OrderedDict[str, int] = OrderedDict()
@@ -207,6 +220,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--date", help="Date in YYYY-MM-DD format. Default: today (local time).")
     p.add_argument("--sid", help="Aggregate only the session with this sid8 prefix.")
     p.add_argument("--all", action="store_true", help="Include every session for the date instead of just the latest.")
+    p.add_argument(
+        "--since",
+        help="Drop log entries with hhmm <= this value (strict greater-than). Format HH:MM.",
+    )
     return p.parse_args(argv)
 
 
@@ -221,9 +238,15 @@ def main(argv: list[str] | None = None) -> int:
     else:
         date = _dt.date.today()
 
+    try:
+        since = _validate_since(args.since)
+    except ValueError as e:
+        sys.stderr.write(f"{e}\n")
+        return 2
+
     logs = list_logs_for_date(date)
     selected = select_logs(logs, date, args.sid, args.all)
-    aggregates = [aggregate_session(p, date) for p in selected]
+    aggregates = [aggregate_session(p, date, since=since) for p in selected]
     sys.stdout.write(render(date, aggregates))
     return 0
 

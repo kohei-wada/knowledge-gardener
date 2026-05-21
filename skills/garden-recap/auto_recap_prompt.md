@@ -11,6 +11,7 @@ Emit **exactly two** comment-delimited blocks, in this order, and nothing else:
 <!-- kg-discovery -->
 folder: <path relative to the vault root>
 filename: <filename for today's daily note>
+filename_pattern: <same filename with today's date replaced by the literal {date}>
 insert_before: <heading line the recap block must precede, or empty to append at EOF>
 <!-- /kg-discovery -->
 <!-- kg-recap-sid:{{MARKER_KEY}} -->
@@ -31,6 +32,7 @@ Derive `folder`, `filename`, and `insert_before` **only from what the vault READ
 
 - **folder**: the README's documented daily-note folder, expressed relative to the vault root (no leading `/`). Use exactly what the README declares; never default to a common name and never invent a folder the README does not mention.
 - **filename**: today's filename per the README's filename convention. Today's date is `{{TODAY}}`. If the README says `YYYY-MM-DD.md`, emit `{{TODAY}}.md`. Use whatever the README declares.
+- **filename_pattern**: same as `filename` but with today's date (`{{TODAY}}`) replaced by the literal placeholder `{date}`. The runtime caches this so future runs can derive tomorrow's filename without re-asking the LLM. If the README's filename rule does not include a date at all, emit the static filename unchanged (no placeholder). Substituting `{date}` with `{{TODAY}}` must produce exactly the `filename` above — keep the two consistent.
 - **insert_before**: optional. If the README documents a heading that the recap block must precede (e.g. a trailing "関連リンク" / "Related" / "Carry over" section), emit the exact heading line (including the `##` prefix). If the README is silent on insertion order, leave the value empty — the script will append at end of file.
 
 **Tree-format READMEs**: when the README documents folder layout via a directory tree (ASCII or otherwise), the topmost directory in the tree often represents the vault root itself — i.e. it stands for `$KG_VAULT` rather than a subdirectory under it. Do NOT include that top node as a prefix on `folder`. Schematic example:

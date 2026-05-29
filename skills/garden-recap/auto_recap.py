@@ -336,7 +336,8 @@ def call_claude(prompt: str, timeout: int) -> str | None:
     cmd_path = shutil.which(cmd_name) or cmd_name
     try:
         proc = subprocess.run(
-            [cmd_path, "-p", prompt],
+            [cmd_path, "-p"],
+            input=prompt,
             capture_output=True,
             text=True,
             timeout=timeout,

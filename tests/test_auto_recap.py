@@ -48,15 +48,15 @@ def make_fake_claude(
 ) -> Path:
     """Create a fake `claude` binary that ignores its args and prints `output`.
 
-    When `record_prompt_to` is given, the script also writes argv[2] (the
-    prompt that `auto_recap.py` passes via `claude -p <prompt>`) to that path
-    so tests can assert which prompt template was used.
+    When `record_prompt_to` is given, the script also writes stdin (the prompt
+    that `auto_recap.py` pipes into `claude -p`) to that path so tests can
+    assert which prompt template was used.
     """
     tmp_path.mkdir(parents=True, exist_ok=True)
     script = tmp_path / "fake_claude.sh"
     body = "#!/usr/bin/env bash\n"
     if record_prompt_to is not None:
-        body += f"printf '%s' \"$2\" > {record_prompt_to.as_posix()!r}\n"
+        body += f"cat > {record_prompt_to.as_posix()!r}\n"
     if sleep:
         body += f"sleep {sleep}\n"
     # use printf to preserve exact content

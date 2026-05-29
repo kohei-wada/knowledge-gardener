@@ -809,6 +809,8 @@ def main() -> None:
 
     try:
         AutoRecap(ctx).run()
+    except Exception:
+        log("uncaught: " + traceback.format_exc().splitlines()[-1])
     finally:
         emit_continue()
 

@@ -299,7 +299,6 @@ class DailyNoteResolver:
 
 class DailyNote:
     def __init__(self, vault: pathlib.Path, daily_path: pathlib.Path) -> None:
-        self._vault = vault
         self._daily_path = daily_path
         self._repo_root = find_repo_root(vault)
 
@@ -688,6 +687,114 @@ def find_repo_root(start: pathlib.Path) -> pathlib.Path | None:
     return None
 
 
+class AutoRecap:
+    def __init__(self, ctx: RecapContext) -> None:
+        self._ctx = ctx
+
+    def run(self) -> None:
+        ctx = self._ctx
+
+        # debounce
+        marker = debounce_marker(ctx.sid8)
+        try:
+            if marker.exists():
+                age = time.time() - marker.stat().st_mtime
+                if age < DEBOUNCE_SECONDS:
+                    return
+        except OSError:
+            pass
+
+        # session log must exist and be non-empty
+        log_path = session_log_path(ctx.sid8)
+        if not log_path.is_file() or log_path.stat().st_size == 0:
+            return
+
+        agg = SessionAggregator(ctx).aggregate()
+        if agg is None:
+            return
+        marker_key = f"{ctx.sid8}-{agg.start_hhmm.replace(':', '')}"
+
+        resolver = DailyNoteResolver(ctx)
+        pre = resolver.pre_resolve()
+
+        readme, template = load_vault_context(ctx.vault)
+        if pre is not None:
+            daily_path, insert_before = pre
+            try:
+                existing_daily = (
+                    daily_path.read_text(encoding="utf-8")
+                    if daily_path.is_file()
+                    else "(file does not exist yet)"
+                )
+            except OSError:
+                existing_daily = "(file does not exist yet)"
+            prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_compose_prompt.md"
+        else:
+            daily_path = None
+            insert_before = ""
+            existing_daily = "(unknown until folder is discovered)"
+            prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_prompt.md"
+
+        if not prompt_template_path.is_file():
+            log(f"prompt template missing: {prompt_template_path}")
+            return
+        prompt_template = prompt_template_path.read_text(encoding="utf-8")
+
+        prompt = compose_prompt(
+            prompt_template,
+            {
+                "SID8": ctx.sid8,
+                "MARKER_KEY": marker_key,
+                "START_HHMM": agg.start_hhmm,
+                "TODAY": ctx.today_str,
+                "VAULT_README": readme,
+                "DAILY_TEMPLATE": template,
+                "EXISTING_DAILY": existing_daily,
+                "AGGREGATOR_OUTPUT": agg.text,
+            },
+        )
+
+        timeout = int(os.environ.get("KG_AUTO_RECAP_TIMEOUT", str(DEFAULT_TIMEOUT)))
+        out = call_claude(prompt, timeout=timeout)
+        if not out:
+            return
+
+        if pre is None:
+            resolved = resolver.resolve_from_discovery(out)
+            if resolved is None:
+                return
+            daily_path, insert_before = resolved
+
+        block = extract_block(out, marker_key)
+        if not block:
+            log("claude output missing recap markers")
+            return
+
+        topic = extract_topic(block)
+        if topic is None:
+            log(f"could not extract topic from block for {marker_key}; using fallback subject")
+
+        note = DailyNote(ctx.vault, daily_path)
+        if not note.apply_block(marker_key, block, insert_before):
+            return
+
+        if not note.has_repo:
+            log("vault is not in a git repo — skipping commit; cursor still updated")
+            write_cursor(ctx.sid8, agg.end_hhmm)
+            return
+        note.commit(marker_key, agg.start_hhmm, topic)
+        write_cursor(ctx.sid8, agg.end_hhmm)
+
+        resolver.persist_cache()
+
+        try:
+            marker = debounce_marker(ctx.sid8)
+            marker.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            marker.touch()
+        except OSError:
+            pass
+
+
 def main() -> None:
     try:
         raw = sys.stdin.read()
@@ -695,160 +802,15 @@ def main() -> None:
         emit_continue()
         return
 
-    if os.environ.get("KG_AUTO_RECAP") != "1":
+    ctx = RecapContext.from_hook(raw, os.environ)
+    if ctx is None:
         emit_continue()
         return
 
     try:
-        payload = json.loads(raw) if raw else {}
-    except Exception:
-        log("invalid hook payload")
+        AutoRecap(ctx).run()
+    finally:
         emit_continue()
-        return
-
-    if not isinstance(payload, dict):
-        emit_continue()
-        return
-
-    session_id = payload.get("session_id") or ""
-    sid8 = (session_id[:8] or "unknown")
-
-    # debounce
-    marker = debounce_marker(sid8)
-    try:
-        if marker.exists():
-            age = time.time() - marker.stat().st_mtime
-            if age < DEBOUNCE_SECONDS:
-                emit_continue()
-                return
-    except OSError:
-        pass
-
-    vault = vault_root()
-    if vault is None:
-        log("KG_VAULT unset or invalid")
-        emit_continue()
-        return
-
-    log_path = session_log_path(sid8)
-    if not log_path.is_file() or log_path.stat().st_size == 0:
-        emit_continue()
-        return
-
-    since = read_cursor(sid8)
-    aggregator_output = run_aggregator(sid8, since=since)
-    if not aggregator_output:
-        emit_continue()
-        return
-
-    window = parse_session_window(aggregator_output)
-    if window is None:
-        log("could not parse Session header from aggregator output")
-        emit_continue()
-        return
-    start_hhmm, end_hhmm = window
-    marker_key = f"{sid8}-{start_hhmm.replace(':', '')}"
-
-    readme, template = load_vault_context(vault)
-    today_str = _dt.date.today().isoformat()
-
-    # Try to pre-resolve the daily path from env + cached discovery (no LLM call).
-    # On a hit, we use the compose-only prompt which drops the README and the
-    # discovery rules — a single, smaller prompt, still one LLM call.
-    readme_hash = compute_readme_hash(vault)
-    cached = read_discovery_cache(readme_hash) if readme_hash else None
-    pre = pre_resolve_daily_path(vault, cached, today_str)
-
-    if pre is not None:
-        daily_path, insert_before = pre
-        try:
-            existing_daily = (
-                daily_path.read_text(encoding="utf-8")
-                if daily_path.is_file()
-                else "(file does not exist yet)"
-            )
-        except OSError:
-            existing_daily = "(file does not exist yet)"
-        prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_compose_prompt.md"
-    else:
-        daily_path = None
-        insert_before = ""
-        existing_daily = "(unknown until folder is discovered)"
-        prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_prompt.md"
-
-    if not prompt_template_path.is_file():
-        log(f"prompt template missing: {prompt_template_path}")
-        emit_continue()
-        return
-    prompt_template = prompt_template_path.read_text(encoding="utf-8")
-
-    prompt = compose_prompt(
-        prompt_template,
-        {
-            "SID8": sid8,
-            "MARKER_KEY": marker_key,
-            "START_HHMM": start_hhmm,
-            "TODAY": today_str,
-            "VAULT_README": readme,
-            "DAILY_TEMPLATE": template,
-            "EXISTING_DAILY": existing_daily,
-            "AGGREGATOR_OUTPUT": aggregator_output,
-        },
-    )
-
-    timeout = int(os.environ.get("KG_AUTO_RECAP_TIMEOUT", str(DEFAULT_TIMEOUT)))
-    out = call_claude(prompt, timeout=timeout)
-    if not out:
-        emit_continue()
-        return
-
-    discovery: dict[str, str] = {}
-    if pre is None:
-        discovery = parse_discovery(out)
-        daily_path = resolve_daily_path(vault, discovery)
-        if daily_path is None:
-            log("could not resolve daily-note path (no env override and no discovery from README)")
-            emit_continue()
-            return
-        insert_before = discovery.get("insert_before", "")
-
-    block = extract_block(out, marker_key)
-    if not block:
-        log("claude output missing recap markers")
-        emit_continue()
-        return
-
-    topic = extract_topic(block)
-    if topic is None:
-        log(f"could not extract topic from block for {marker_key}; using fallback subject")
-
-    changed = upsert_block(daily_path, marker_key, block, insert_before=insert_before)
-    if not changed:
-        emit_continue()
-        return
-
-    repo_root = find_repo_root(vault)
-    if repo_root is None:
-        log("vault is not in a git repo — skipping commit; cursor still updated")
-        write_cursor(sid8, end_hhmm)
-        emit_continue()
-        return
-    commit_and_push(repo_root, daily_path, marker_key, start_hhmm, topic)
-    write_cursor(sid8, end_hhmm)
-
-    # On a successful miss-path run, persist the discovered values so subsequent
-    # Stop hooks (until the README changes) can skip the discovery LLM step.
-    if pre is None and readme_hash and discovery.get("folder") and discovery.get("filename_pattern"):
-        write_discovery_cache(readme_hash, discovery)
-
-    try:
-        marker = debounce_marker(sid8)
-        marker.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        marker.touch()
-    except OSError:
-        pass
-
-    emit_continue()
 
 
 if __name__ == "__main__":

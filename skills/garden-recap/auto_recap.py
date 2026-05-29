@@ -242,6 +242,28 @@ class RecapContext:
         )
 
 
+@dataclasses.dataclass(frozen=True)
+class Aggregation:
+    text: str
+    start_hhmm: str
+    end_hhmm: str
+
+
+class SessionAggregator:
+    def __init__(self, ctx: RecapContext) -> None:
+        self._ctx = ctx
+
+    def aggregate(self) -> Aggregation | None:
+        out = run_aggregator(self._ctx.sid8, since=self._ctx.since)
+        if not out:
+            return None
+        window = parse_session_window(out)
+        if window is None:
+            log("could not parse Session header from aggregator output")
+            return None
+        return Aggregation(text=out, start_hhmm=window[0], end_hhmm=window[1])
+
+
 SESSION_HEADER_RE = re.compile(r"^## Session (\d{2}:\d{2}) - (\d{2}:\d{2})", re.MULTILINE)
 # Recap block heading: `## Session HH:MM 〜 <topic>` (full-width tilde 〜).
 # We allow either form so prompt-template drift doesn't kill the topic.

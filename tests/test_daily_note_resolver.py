@@ -34,3 +34,27 @@ def test_recap_context_from_hook_builds_facts(monkeypatch, tmp_path):
     assert ctx.sid8 == "abcd1234"
     assert ctx.vault == vault
     assert len(ctx.today_str) == 10  # YYYY-MM-DD
+
+
+def test_session_aggregator_returns_none_when_no_sessions(monkeypatch, tmp_path):
+    mod = _load_module()
+    monkeypatch.setattr(mod, "run_aggregator", lambda sid8, since=None: None)
+    ctx = mod.RecapContext(sid8="abcd1234", vault=tmp_path, today_str="2026-05-29", since=None)
+    agg = mod.SessionAggregator(ctx).aggregate()
+    assert agg is None
+
+
+def test_session_aggregator_parses_window(monkeypatch, tmp_path):
+    mod = _load_module()
+    fake_out = (
+        "# Sessions on 2026-05-29\n1 session(s) found.\n\n"
+        "## Session 09:00 - 09:30 (sid8: abcd1234)\n"
+        "Duration: 30m, 5 captured tool calls.\n"
+    )
+    monkeypatch.setattr(mod, "run_aggregator", lambda sid8, since=None: fake_out)
+    ctx = mod.RecapContext(sid8="abcd1234", vault=tmp_path, today_str="2026-05-29", since=None)
+    agg = mod.SessionAggregator(ctx).aggregate()
+    assert agg is not None
+    assert agg.text == fake_out
+    assert agg.start_hhmm == "09:00"
+    assert agg.end_hhmm == "09:30"

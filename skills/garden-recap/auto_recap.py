@@ -30,7 +30,7 @@ from recap_common import (  # noqa: E402
     write_cursor,
 )
 from recap_context import RecapContext  # noqa: E402
-from recap_aggregation import SessionAggregator  # noqa: E402
+from session_aggregator import SessionAggregator  # noqa: E402
 from daily_note_resolver import DailyNoteResolver  # noqa: E402
 from daily_note import DailyNote, extract_block, extract_topic  # noqa: E402
 

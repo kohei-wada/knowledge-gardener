@@ -6,7 +6,6 @@ import pathlib
 import re
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
 from kg_paths import cursor_path as _shared_cursor_path  # noqa: E402
 from kg_paths import debounce_marker as _shared_debounce_marker  # noqa: E402

@@ -9,7 +9,7 @@ if str(GARDEN) not in sys.path:
     sys.path.insert(0, str(GARDEN))
 
 import recap_context  # noqa: E402
-import recap_aggregation  # noqa: E402
+import session_aggregator  # noqa: E402
 import daily_note_resolver  # noqa: E402
 import daily_note  # noqa: E402
 
@@ -32,9 +32,9 @@ def test_recap_context_from_hook_builds_facts(monkeypatch, tmp_path):
 
 
 def test_session_aggregator_returns_none_when_no_sessions(monkeypatch, tmp_path):
-    monkeypatch.setattr(recap_aggregation, "run_aggregator", lambda sid8, since=None: None)
+    monkeypatch.setattr(session_aggregator, "run_aggregator", lambda sid8, since=None: None)
     ctx = recap_context.RecapContext(sid8="abcd1234", vault=tmp_path, today_str="2026-05-29", since=None)
-    agg = recap_aggregation.SessionAggregator(ctx).aggregate()
+    agg = session_aggregator.SessionAggregator(ctx).aggregate()
     assert agg is None
 
 
@@ -44,9 +44,9 @@ def test_session_aggregator_parses_window(monkeypatch, tmp_path):
         "## Session 09:00 - 09:30 (sid8: abcd1234)\n"
         "Duration: 30m, 5 captured tool calls.\n"
     )
-    monkeypatch.setattr(recap_aggregation, "run_aggregator", lambda sid8, since=None: fake_out)
+    monkeypatch.setattr(session_aggregator, "run_aggregator", lambda sid8, since=None: fake_out)
     ctx = recap_context.RecapContext(sid8="abcd1234", vault=tmp_path, today_str="2026-05-29", since=None)
-    agg = recap_aggregation.SessionAggregator(ctx).aggregate()
+    agg = session_aggregator.SessionAggregator(ctx).aggregate()
     assert agg is not None
     assert agg.text == fake_out
     assert agg.start_hhmm == "09:00"

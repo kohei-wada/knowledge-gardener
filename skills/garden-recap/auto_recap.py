@@ -297,6 +297,25 @@ class DailyNoteResolver:
             write_discovery_cache(self._readme_hash, self._discovery)
 
 
+class DailyNote:
+    def __init__(self, vault: pathlib.Path, daily_path: pathlib.Path) -> None:
+        self._vault = vault
+        self._daily_path = daily_path
+        self._repo_root = find_repo_root(vault)
+
+    @property
+    def has_repo(self) -> bool:
+        return self._repo_root is not None
+
+    def apply_block(self, marker_key: str, block: str, insert_before: str) -> bool:
+        return upsert_block(self._daily_path, marker_key, block, insert_before=insert_before)
+
+    def commit(self, marker_key: str, start_hhmm: str, topic: str | None) -> None:
+        if self._repo_root is None:
+            return
+        commit_and_push(self._repo_root, self._daily_path, marker_key, start_hhmm, topic)
+
+
 SESSION_HEADER_RE = re.compile(r"^## Session (\d{2}:\d{2}) - (\d{2}:\d{2})", re.MULTILINE)
 # Recap block heading: `## Session HH:MM 〜 <topic>` (full-width tilde 〜).
 # We allow either form so prompt-template drift doesn't kill the topic.

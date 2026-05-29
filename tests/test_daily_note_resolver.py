@@ -127,3 +127,29 @@ def test_resolver_persist_cache_writes_on_miss(monkeypatch, tmp_path):
     r.persist_cache()
     assert written["hash"] == "deadbeef"
     assert written["discovery"]["folder"] == "04_DailyNotes"
+
+
+def test_daily_note_apply_block_writes_file(tmp_path):
+    mod = _load_module()
+    vault = tmp_path / "vault"
+    folder = vault / "04_DailyNotes"
+    folder.mkdir(parents=True)
+    daily_path = folder / "2026-05-29.md"
+    note = mod.DailyNote(vault, daily_path)
+    block = "<!-- kg-recap-sid:abcd1234-0900 -->\n## Session 09:00 〜 x\n<!-- /kg-recap-sid:abcd1234-0900 -->"
+    changed = note.apply_block("abcd1234-0900", block, insert_before="")
+    assert changed is True
+    assert "kg-recap-sid:abcd1234-0900" in daily_path.read_text()
+
+
+def test_daily_note_apply_block_noop_when_identical(tmp_path):
+    mod = _load_module()
+    vault = tmp_path / "vault"
+    folder = vault / "04_DailyNotes"
+    folder.mkdir(parents=True)
+    daily_path = folder / "2026-05-29.md"
+    note = mod.DailyNote(vault, daily_path)
+    block = "<!-- kg-recap-sid:abcd1234-0900 -->\nx\n<!-- /kg-recap-sid:abcd1234-0900 -->"
+    assert note.apply_block("abcd1234-0900", block, "") is True
+    # second identical apply → no change
+    assert note.apply_block("abcd1234-0900", block, "") is False

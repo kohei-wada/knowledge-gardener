@@ -58,3 +58,52 @@ def test_session_aggregator_parses_window(monkeypatch, tmp_path):
     assert agg.text == fake_out
     assert agg.start_hhmm == "09:00"
     assert agg.end_hhmm == "09:30"
+
+
+def _ctx_with_vault(mod, tmp_path):
+    vault = tmp_path / "vault"
+    (vault / "04_DailyNotes").mkdir(parents=True)
+    return mod.RecapContext(sid8="abcd1234", vault=vault, today_str="2026-05-29", since=None), vault
+
+
+def test_resolver_pre_resolve_hits_via_env(monkeypatch, tmp_path):
+    mod = _load_module()
+    ctx, vault = _ctx_with_vault(mod, tmp_path)
+    monkeypatch.setenv("KG_DAILY_FOLDER", "04_DailyNotes")
+    monkeypatch.setenv("KG_DAILY_FILENAME", "2026-05-29.md")
+    r = mod.DailyNoteResolver(ctx)
+    pre = r.pre_resolve()
+    assert pre is not None
+    daily_path, _ = pre
+    assert daily_path == vault / "04_DailyNotes" / "2026-05-29.md"
+    assert r.pre_resolved is True
+
+
+def test_resolver_pre_resolve_misses_without_env_or_cache(monkeypatch, tmp_path):
+    mod = _load_module()
+    ctx, vault = _ctx_with_vault(mod, tmp_path)
+    monkeypatch.delenv("KG_DAILY_FOLDER", raising=False)
+    monkeypatch.delenv("KG_DAILY_FILENAME", raising=False)
+    monkeypatch.setattr(mod, "read_discovery_cache", lambda h: None)
+    r = mod.DailyNoteResolver(ctx)
+    assert r.pre_resolve() is None
+    assert r.pre_resolved is False
+
+
+def test_resolver_resolve_from_discovery(monkeypatch, tmp_path):
+    mod = _load_module()
+    ctx, vault = _ctx_with_vault(mod, tmp_path)
+    monkeypatch.delenv("KG_DAILY_FOLDER", raising=False)
+    monkeypatch.delenv("KG_DAILY_FILENAME", raising=False)
+    r = mod.DailyNoteResolver(ctx)
+    claude_out = (
+        "<!-- kg-discovery -->\n"
+        "folder: 04_DailyNotes\n"
+        "filename: 2026-05-29.md\n"
+        "insert_before:\n"
+        "<!-- /kg-discovery -->\n"
+    )
+    res = r.resolve_from_discovery(claude_out)
+    assert res is not None
+    daily_path, insert_before = res
+    assert daily_path == vault / "04_DailyNotes" / "2026-05-29.md"

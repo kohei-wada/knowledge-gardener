@@ -264,6 +264,40 @@ class SessionAggregator:
         return Aggregation(text=out, start_hhmm=window[0], end_hhmm=window[1])
 
 
+class DailyNoteResolver:
+    def __init__(self, ctx: RecapContext, dict_env: dict[str, str] | None = None) -> None:
+        self._ctx = ctx
+        self._env = os.environ if dict_env is None else dict_env
+        self._readme_hash = compute_readme_hash(ctx.vault)
+        self._cached = (
+            read_discovery_cache(self._readme_hash) if self._readme_hash else None
+        )
+        self._discovery: dict[str, str] = {}
+        self.pre_resolved = False
+
+    def pre_resolve(self) -> tuple[pathlib.Path, str] | None:
+        pre = pre_resolve_daily_path(self._ctx.vault, self._cached, self._ctx.today_str)
+        self.pre_resolved = pre is not None
+        return pre
+
+    def resolve_from_discovery(self, claude_output: str) -> tuple[pathlib.Path, str] | None:
+        self._discovery = parse_discovery(claude_output)
+        daily_path = resolve_daily_path(self._ctx.vault, self._discovery)
+        if daily_path is None:
+            log("could not resolve daily-note path (no env override and no discovery from README)")
+            return None
+        return (daily_path, self._discovery.get("insert_before", ""))
+
+    def persist_cache(self) -> None:
+        if (
+            not self.pre_resolved
+            and self._readme_hash
+            and self._discovery.get("folder")
+            and self._discovery.get("filename_pattern")
+        ):
+            write_discovery_cache(self._readme_hash, self._discovery)
+
+
 SESSION_HEADER_RE = re.compile(r"^## Session (\d{2}:\d{2}) - (\d{2}:\d{2})", re.MULTILINE)
 # Recap block heading: `## Session HH:MM 〜 <topic>` (full-width tilde 〜).
 # We allow either form so prompt-template drift doesn't kill the topic.

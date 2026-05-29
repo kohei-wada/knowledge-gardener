@@ -206,115 +206,6 @@ def vault_root() -> pathlib.Path | None:
     return p if p.is_dir() else None
 
 
-@dataclasses.dataclass(frozen=True)
-class RecapContext:
-    sid8: str
-    vault: pathlib.Path
-    today_str: str
-    since: str | None
-
-    @classmethod
-    def from_hook(cls, raw_stdin: str, dict_env: dict[str, str]) -> "RecapContext | None":
-        if dict_env.get("KG_AUTO_RECAP") != "1":
-            return None
-        try:
-            payload = json.loads(raw_stdin) if raw_stdin else {}
-        except Exception:
-            log("invalid hook payload")
-            return None
-        if not isinstance(payload, dict):
-            return None
-        v = dict_env.get("KG_VAULT")
-        if not v:
-            log("KG_VAULT unset or invalid")
-            return None
-        vault = pathlib.Path(v)
-        if not vault.is_dir():
-            log("KG_VAULT unset or invalid")
-            return None
-        sid8 = (payload.get("session_id") or "")[:8] or "unknown"
-        since = read_cursor(sid8)
-        return cls(
-            sid8=sid8,
-            vault=vault,
-            today_str=_dt.date.today().isoformat(),
-            since=since,
-        )
-
-
-@dataclasses.dataclass(frozen=True)
-class Aggregation:
-    text: str
-    start_hhmm: str
-    end_hhmm: str
-
-
-class SessionAggregator:
-    def __init__(self, ctx: RecapContext) -> None:
-        self._ctx = ctx
-
-    def aggregate(self) -> Aggregation | None:
-        out = run_aggregator(self._ctx.sid8, since=self._ctx.since)
-        if not out:
-            return None
-        window = parse_session_window(out)
-        if window is None:
-            log("could not parse Session header from aggregator output")
-            return None
-        return Aggregation(text=out, start_hhmm=window[0], end_hhmm=window[1])
-
-
-class DailyNoteResolver:
-    def __init__(self, ctx: RecapContext) -> None:
-        self._ctx = ctx
-        self._readme_hash = compute_readme_hash(ctx.vault)
-        self._cached = (
-            read_discovery_cache(self._readme_hash) if self._readme_hash else None
-        )
-        self._discovery: dict[str, str] = {}
-        self.pre_resolved = False
-
-    def pre_resolve(self) -> tuple[pathlib.Path, str] | None:
-        pre = pre_resolve_daily_path(self._ctx.vault, self._cached, self._ctx.today_str)
-        self.pre_resolved = pre is not None
-        return pre
-
-    def resolve_from_discovery(self, claude_output: str) -> tuple[pathlib.Path, str] | None:
-        self._discovery = parse_discovery(claude_output)
-        daily_path = resolve_daily_path(self._ctx.vault, self._discovery)
-        if daily_path is None:
-            log("could not resolve daily-note path (no env override and no discovery from README)")
-            return None
-        return (daily_path, self._discovery.get("insert_before", ""))
-
-    def persist_cache(self) -> None:
-        if (
-            not self.pre_resolved
-            and self._readme_hash
-            and self._discovery.get("folder")
-            and self._discovery.get("filename_pattern")
-        ):
-            write_discovery_cache(self._readme_hash, self._discovery)
-
-
-class DailyNote:
-    def __init__(self, vault: pathlib.Path, daily_path: pathlib.Path) -> None:
-        self._daily_path = daily_path
-        self._repo_root = find_repo_root(vault)
-
-    @property
-    def has_repo(self) -> bool:
-        return self._repo_root is not None
-
-    def apply_block(self, marker_key: str, block: str, insert_before: str) -> bool:
-        return upsert_block(self._daily_path, marker_key, block, insert_before=insert_before)
-
-    def commit(self, marker_key: str, start_hhmm: str, topic: str | None) -> None:
-        if self._repo_root is None:
-            return
-        commit_and_push(self._repo_root, self._daily_path, marker_key, start_hhmm, topic)
-
-
 SESSION_HEADER_RE = re.compile(r"^## Session (\d{2}:\d{2}) - (\d{2}:\d{2})", re.MULTILINE)
 # Recap block heading: `## Session HH:MM 〜 <topic>` (full-width tilde 〜).
 # We allow either form so prompt-template drift doesn't kill the topic.
@@ -685,6 +576,115 @@ def find_repo_root(start: pathlib.Path) -> pathlib.Path | None:
         if (cand / ".git").exists():
             return cand
     return None
+
+
+@dataclasses.dataclass(frozen=True)
+class RecapContext:
+    sid8: str
+    vault: pathlib.Path
+    today_str: str
+    since: str | None
+
+    @classmethod
+    def from_hook(cls, raw_stdin: str, dict_env: dict[str, str]) -> "RecapContext | None":
+        if dict_env.get("KG_AUTO_RECAP") != "1":
+            return None
+        try:
+            payload = json.loads(raw_stdin) if raw_stdin else {}
+        except Exception:
+            log("invalid hook payload")
+            return None
+        if not isinstance(payload, dict):
+            return None
+        v = dict_env.get("KG_VAULT")
+        if not v:
+            log("KG_VAULT unset or invalid")
+            return None
+        vault = pathlib.Path(v)
+        if not vault.is_dir():
+            log("KG_VAULT unset or invalid")
+            return None
+        sid8 = (payload.get("session_id") or "")[:8] or "unknown"
+        since = read_cursor(sid8)
+        return cls(
+            sid8=sid8,
+            vault=vault,
+            today_str=_dt.date.today().isoformat(),
+            since=since,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class Aggregation:
+    text: str
+    start_hhmm: str
+    end_hhmm: str
+
+
+class SessionAggregator:
+    def __init__(self, ctx: RecapContext) -> None:
+        self._ctx = ctx
+
+    def aggregate(self) -> Aggregation | None:
+        out = run_aggregator(self._ctx.sid8, since=self._ctx.since)
+        if not out:
+            return None
+        window = parse_session_window(out)
+        if window is None:
+            log("could not parse Session header from aggregator output")
+            return None
+        return Aggregation(text=out, start_hhmm=window[0], end_hhmm=window[1])
+
+
+class DailyNoteResolver:
+    def __init__(self, ctx: RecapContext) -> None:
+        self._ctx = ctx
+        self._readme_hash = compute_readme_hash(ctx.vault)
+        self._cached = (
+            read_discovery_cache(self._readme_hash) if self._readme_hash else None
+        )
+        self._discovery: dict[str, str] = {}
+        self.pre_resolved = False
+
+    def pre_resolve(self) -> tuple[pathlib.Path, str] | None:
+        pre = pre_resolve_daily_path(self._ctx.vault, self._cached, self._ctx.today_str)
+        self.pre_resolved = pre is not None
+        return pre
+
+    def resolve_from_discovery(self, claude_output: str) -> tuple[pathlib.Path, str] | None:
+        self._discovery = parse_discovery(claude_output)
+        daily_path = resolve_daily_path(self._ctx.vault, self._discovery)
+        if daily_path is None:
+            log("could not resolve daily-note path (no env override and no discovery from README)")
+            return None
+        return (daily_path, self._discovery.get("insert_before", ""))
+
+    def persist_cache(self) -> None:
+        if (
+            not self.pre_resolved
+            and self._readme_hash
+            and self._discovery.get("folder")
+            and self._discovery.get("filename_pattern")
+        ):
+            write_discovery_cache(self._readme_hash, self._discovery)
+
+
+class DailyNote:
+    def __init__(self, vault: pathlib.Path, daily_path: pathlib.Path) -> None:
+        self._daily_path = daily_path
+        self._repo_root = find_repo_root(vault)
+
+    @property
+    def has_repo(self) -> bool:
+        return self._repo_root is not None
+
+    def apply_block(self, marker_key: str, block: str, insert_before: str) -> bool:
+        return upsert_block(self._daily_path, marker_key, block, insert_before=insert_before)
+
+    def commit(self, marker_key: str, start_hhmm: str, topic: str | None) -> None:
+        if self._repo_root is None:
+            return
+        commit_and_push(self._repo_root, self._daily_path, marker_key, start_hhmm, topic)
 
 
 class AutoRecap:

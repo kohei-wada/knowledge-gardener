@@ -153,3 +153,26 @@ def test_daily_note_apply_block_noop_when_identical(tmp_path):
     assert note.apply_block("abcd1234-0900", block, "") is True
     # second identical apply → no change
     assert note.apply_block("abcd1234-0900", block, "") is False
+
+
+def test_daily_note_has_repo_false_when_no_git(tmp_path):
+    mod = _load_module()
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    daily_path = vault / "2026-05-29.md"
+    note = mod.DailyNote(vault, daily_path)
+    assert note.has_repo is False
+
+
+def test_resolver_persist_cache_noop_on_hit(monkeypatch, tmp_path):
+    mod = _load_module()
+    ctx, vault = _ctx_with_vault(mod, tmp_path)
+    monkeypatch.setenv("KG_DAILY_FOLDER", "04_DailyNotes")
+    monkeypatch.setenv("KG_DAILY_FILENAME", "2026-05-29.md")
+    monkeypatch.setattr(mod, "compute_readme_hash", lambda v: "deadbeef")
+    written = {}
+    monkeypatch.setattr(mod, "write_discovery_cache", lambda h, d: written.update({"called": True}))
+    r = mod.DailyNoteResolver(ctx)
+    assert r.pre_resolve() is not None  # hit → pre_resolved True
+    r.persist_cache()
+    assert written == {}  # no write on the hit path

@@ -198,14 +198,6 @@ def plugin_root() -> pathlib.Path:
     return pathlib.Path(__file__).resolve().parents[2]
 
 
-def vault_root() -> pathlib.Path | None:
-    v = os.environ.get("KG_VAULT")
-    if not v:
-        return None
-    p = pathlib.Path(v)
-    return p if p.is_dir() else None
-
-
 SESSION_HEADER_RE = re.compile(r"^## Session (\d{2}:\d{2}) - (\d{2}:\d{2})", re.MULTILINE)
 # Recap block heading: `## Session HH:MM 〜 <topic>` (full-width tilde 〜).
 # We allow either form so prompt-template drift doesn't kill the topic.

@@ -265,9 +265,8 @@ class SessionAggregator:
 
 
 class DailyNoteResolver:
-    def __init__(self, ctx: RecapContext, dict_env: dict[str, str] | None = None) -> None:
+    def __init__(self, ctx: RecapContext) -> None:
         self._ctx = ctx
-        self._env = os.environ if dict_env is None else dict_env
         self._readme_hash = compute_readme_hash(ctx.vault)
         self._cached = (
             read_discovery_cache(self._readme_hash) if self._readme_hash else None

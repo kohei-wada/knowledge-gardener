@@ -107,3 +107,23 @@ def test_resolver_resolve_from_discovery(monkeypatch, tmp_path):
     assert res is not None
     daily_path, insert_before = res
     assert daily_path == vault / "04_DailyNotes" / "2026-05-29.md"
+    assert insert_before == ""
+
+
+def test_resolver_persist_cache_writes_on_miss(monkeypatch, tmp_path):
+    mod = _load_module()
+    ctx, vault = _ctx_with_vault(mod, tmp_path)
+    monkeypatch.delenv("KG_DAILY_FOLDER", raising=False)
+    monkeypatch.delenv("KG_DAILY_FILENAME", raising=False)
+    monkeypatch.setattr(mod, "read_discovery_cache", lambda h: None)
+    monkeypatch.setattr(mod, "compute_readme_hash", lambda v: "deadbeef")
+    written = {}
+    monkeypatch.setattr(mod, "write_discovery_cache", lambda h, d: written.update({"hash": h, "discovery": d}))
+    r = mod.DailyNoteResolver(ctx)
+    r.pre_resolve()  # miss → pre_resolved False
+    r.resolve_from_discovery(
+        "<!-- kg-discovery -->\nfolder: 04_DailyNotes\nfilename: 2026-05-29.md\nfilename_pattern: {date}.md\n<!-- /kg-discovery -->\n"
+    )
+    r.persist_cache()
+    assert written["hash"] == "deadbeef"
+    assert written["discovery"]["folder"] == "04_DailyNotes"

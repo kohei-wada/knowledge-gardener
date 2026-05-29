@@ -1,9 +1,9 @@
 """Shared path helpers for knowledge-gardener machine-local state.
 
 Used by:
-- skills/garden-recap/capture.py (PostToolUse hook — writes session log entries)
-- skills/garden-recap/recap_aggregate.py (reads session logs)
-- skills/garden-recap/auto_recap.py (reads session log, writes debounce marker)
+- recap/capture.py (PostToolUse hook — writes session log entries)
+- recap/recap_aggregate.py (reads session logs)
+- recap/auto_recap.py (reads session log, writes debounce marker)
 
 All three previously duplicated the XDG_STATE_HOME resolution and the
 "<state>/knowledge-gardener/sessions/" path construction. Centralized here

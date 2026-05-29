@@ -5,7 +5,7 @@ See docs/specs/2026-05-20-recap-aggregator-design.md for the design rationale.
 Plain stdlib only. Read-only: never writes back to the log dir.
 
 Usage:
-    skills/garden-recap/recap_aggregate.py [--date YYYY-MM-DD] [--sid SID8] [--all]
+    recap/recap_aggregate.py [--date YYYY-MM-DD] [--sid SID8] [--all]
 """
 from __future__ import annotations
 
@@ -17,9 +17,8 @@ import sys
 from collections import Counter, OrderedDict
 from typing import Iterable
 
-# Shared path helpers. recap_aggregate.py lives at skills/garden-recap/, so the
-# repo-root lib/ is two parents up.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
+# Shared path helpers live next to this file at recap/recap_aggregate.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from kg_paths import sessions_dir  # noqa: E402
 
 LINE_RE = re.compile(

@@ -14,7 +14,7 @@ SESSION_HEADER_RE = re.compile(r"^## Session (\d{2}:\d{2}) - (\d{2}:\d{2})", re.
 
 
 def run_aggregator(sid8: str, since: str | None = None) -> str | None:
-    script = plugin_root() / "skills" / "garden-recap" / "recap_aggregate.py"
+    script = plugin_root() / "recap" / "recap_aggregate.py"
     if not script.is_file():
         return None
     args = [sys.executable, str(script), "--sid", sid8]

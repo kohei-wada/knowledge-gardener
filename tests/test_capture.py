@@ -1,4 +1,4 @@
-"""Subprocess-based tests for skills/garden-recap/capture.py.
+"""Subprocess-based tests for recap/capture.py.
 
 Runs the script as a child process with a JSON payload on stdin and a temp
 $XDG_STATE_HOME, asserting the side-effect log file matches expectations.
@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CAPTURE = REPO_ROOT / "skills" / "garden-recap" / "capture.py"
+CAPTURE = REPO_ROOT / "recap" / "capture.py"
 
 
 def run_capture(payload: dict | None, *, tmp_path: Path, raw: str | None = None) -> tuple[str, str, Path]:

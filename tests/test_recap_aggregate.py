@@ -1,4 +1,4 @@
-"""Tests for skills/garden-recap/recap_aggregate.py."""
+"""Tests for recap/recap_aggregate.py."""
 from __future__ import annotations
 
 import datetime as _dt
@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / "skills" / "garden-recap" / "recap_aggregate.py"
+SCRIPT = REPO_ROOT / "recap" / "recap_aggregate.py"
 
 
 def run(args: list[str], *, state_home: Path) -> subprocess.CompletedProcess[str]:
@@ -350,7 +350,7 @@ def test_cursor_path_under_sessions_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
     # Re-import the module function fresh — kg_paths reads env at call time,
     # not at import time.
-    sys.path.insert(0, str(REPO_ROOT / "lib"))
+    sys.path.insert(0, str(REPO_ROOT / "recap"))
     import importlib
     import kg_paths
     importlib.reload(kg_paths)

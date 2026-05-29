@@ -131,12 +131,12 @@ class AutoRecap:
                 )
             except OSError:
                 existing_daily = "(file does not exist yet)"
-            prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_compose_prompt.md"
+            prompt_template_path = plugin_root() / "recap" / "prompts" / "auto_recap_compose_prompt.md"
         else:
             daily_path = None
             insert_before = ""
             existing_daily = "(unknown until folder is discovered)"
-            prompt_template_path = plugin_root() / "skills" / "garden-recap" / "auto_recap_prompt.md"
+            prompt_template_path = plugin_root() / "recap" / "prompts" / "auto_recap_prompt.md"
 
         if not prompt_template_path.is_file():
             log(f"prompt template missing: {prompt_template_path}")

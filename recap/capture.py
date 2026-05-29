@@ -14,9 +14,8 @@ import pathlib
 import re
 import sys
 
-# Shared path helpers live at <plugin-root>/lib/. capture.py is at
-# skills/garden-recap/capture.py, so the lib dir is two parents up.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
+# Shared path helpers live next to this file at recap/capture.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from kg_paths import session_log_path  # noqa: E402
 
 ALWAYS_SKIP = frozenset({

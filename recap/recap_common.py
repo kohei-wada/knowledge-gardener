@@ -6,7 +6,7 @@ import pathlib
 import re
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from kg_paths import cursor_path as _shared_cursor_path  # noqa: E402
 from kg_paths import debounce_marker as _shared_debounce_marker  # noqa: E402
 from kg_paths import discovery_cache_path as _shared_discovery_cache_path  # noqa: E402
@@ -52,8 +52,8 @@ def plugin_root() -> pathlib.Path:
     env = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if env:
         return pathlib.Path(env)
-    # auto_recap.py lives at <plugin_root>/skills/garden-recap/auto_recap.py
-    return pathlib.Path(__file__).resolve().parents[2]
+    # recap_common.py lives at <plugin_root>/recap/recap_common.py
+    return pathlib.Path(__file__).resolve().parents[1]
 
 
 def read_text(path: pathlib.Path, limit: int = 20_000) -> str:

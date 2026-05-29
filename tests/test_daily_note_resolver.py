@@ -4,7 +4,7 @@ from __future__ import annotations
 import pathlib
 import sys
 
-GARDEN = pathlib.Path(__file__).resolve().parents[1] / "skills" / "garden-recap"
+GARDEN = pathlib.Path(__file__).resolve().parents[1] / "recap"
 if str(GARDEN) not in sys.path:
     sys.path.insert(0, str(GARDEN))
 

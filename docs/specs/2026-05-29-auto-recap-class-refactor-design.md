@@ -1,7 +1,7 @@
 # auto_recap.py Class Refactor — Design
 
 - **Date**: 2026-05-29
-- **Status**: Draft
+- **Status**: Implemented
 - **Type**: Refactor (behavior-preserving)
 - **Prior art**: [2026-05-20-auto-recap-design.md](2026-05-20-auto-recap-design.md), [2026-05-21-per-stop-recap-blocks-design.md](2026-05-21-per-stop-recap-blocks-design.md)
 - **Related issue**: [#18](https://github.com/Kohei-Wada/knowledge-gardener/issues/18) (this refactor is the groundwork; the substance gate "A" and coalesce "B" are out of scope here)
@@ -26,6 +26,19 @@ Split `auto_recap.py` into role-focused classes so that:
 - **No** coalesce redesign (issue #18 direction B).
 - **No** change to the prompt templates, the discovery-cache format, env-var contract, marker format, or commit-subject shape.
 - **No** rewrite of the pure helper functions that are already well-tested.
+
+## Addendum (post-implementation): file split
+
+This design originally kept all classes in the single `auto_recap.py` module. After the class refactor landed, the file was split into focused sibling modules (still behavior-preserving, subprocess suite unchanged and green):
+
+- `recap_common.py` — shared primitives (logging, constants, `kg_paths` wrappers, `plugin_root`, `read_text`, cursor I/O).
+- `recap_context.py` — `RecapContext`.
+- `session_aggregator.py` — `Aggregation`, `SessionAggregator`, `run_aggregator`, `parse_session_window`.
+- `daily_note_resolver.py` — `DailyNoteResolver` + discovery-cache and path-resolution helpers.
+- `daily_note.py` — `DailyNote` + block/upsert/git helpers.
+- `auto_recap.py` — slim entry: `load_vault_context`, `compose_prompt`, `call_claude`, `AutoRecap`, `main`.
+
+Each module self-bootstraps its own dir onto `sys.path` so sibling imports resolve both when the hook runs as a script and when the unit tests import the modules. Dead symbols (`vault_root`, `daily_note_path`, `MARKER_OPEN_RE`, unused `kg_state_dir` import) were dropped along the way.
 
 ## Architecture
 

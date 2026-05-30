@@ -4,14 +4,14 @@ from __future__ import annotations
 import pathlib
 import sys
 
-GARDEN = pathlib.Path(__file__).resolve().parents[1] / "recap"
-if str(GARDEN) not in sys.path:
-    sys.path.insert(0, str(GARDEN))
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-import recap_context  # noqa: E402
-import session_aggregator  # noqa: E402
-import daily_note_resolver  # noqa: E402
-import daily_note  # noqa: E402
+from recap.autorecap import context as recap_context  # noqa: E402
+from recap.autorecap import daily_note  # noqa: E402
+from recap.autorecap import daily_note_resolver  # noqa: E402
+from recap.autorecap import session_aggregator  # noqa: E402
 
 
 def test_recap_context_from_hook_returns_none_when_env_unset(monkeypatch):

@@ -1,27 +1,30 @@
 from __future__ import annotations
 
 import dataclasses
-import pathlib
+import os
 import re
 import subprocess
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from recap_common import log, plugin_root  # noqa: E402
-from recap_context import RecapContext  # noqa: E402
+from ..shared.fs import plugin_root
+from ..shared.hook_io import log
+from .context import RecapContext
 
 SESSION_HEADER_RE = re.compile(r"^## Session (\d{2}:\d{2}) - (\d{2}:\d{2})", re.MULTILINE)
 
 
 def run_aggregator(sid8: str, since: str | None = None) -> str | None:
-    script = plugin_root() / "recap" / "recap_aggregate.py"
-    if not script.is_file():
+    root = plugin_root()
+    if not (root / "recap" / "aggregate" / "__main__.py").is_file():
         return None
-    args = [sys.executable, str(script), "--sid", sid8]
+    args = [sys.executable, "-m", "recap.aggregate", "--sid", sid8]
     if since:
         args += ["--since", since]
+    env = {**os.environ, "PYTHONPATH": str(root) + os.pathsep + os.environ.get("PYTHONPATH", "")}
     try:
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=30, check=False)
+        proc = subprocess.run(
+            args, capture_output=True, text=True, timeout=30, check=False, env=env, cwd=str(root)
+        )
     except (OSError, subprocess.TimeoutExpired) as e:
         log(f"aggregator failed: {e!r}")
         return None

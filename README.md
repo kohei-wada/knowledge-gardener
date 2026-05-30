@@ -99,7 +99,7 @@ What is skipped:
 
 Privacy at the edge: `<private>...</private>` blocks and `<key>=<value>` shapes for `api_key` / `secret` / `token` / `password` / `auth` are replaced with `[REDACTED]` before any byte hits disk.
 
-Since `v0.9.0`, `garden-recap` reads these logs via `recap/recap_aggregate.py` and uses them as the inventory source instead of relying solely on Claude's recollection. Falls back to recollection when no logs exist.
+Since `v0.9.0`, `garden-recap` reads these logs via `recap/aggregate/` and uses them as the inventory source instead of relying solely on Claude's recollection. Falls back to recollection when no logs exist.
 
 ### Auto-Recap (Phase 3, opt-in)
 
@@ -116,7 +116,7 @@ export KG_DAILY_TEMPLATE='<path/to/daily-template.md>'              # extra cont
 export KG_DAILY_INSERT_BEFORE='## <heading the block must precede>' # override discovery; default = append at EOF
 ```
 
-When set, every Claude "stop" event triggers `recap/auto_recap.py` which spawns headless `claude -p` with the session log + vault README. Claude returns two blocks:
+When set, every Claude "stop" event triggers `recap/autorecap/` which spawns headless `claude -p` with the session log + vault README. Claude returns two blocks:
 
 1. A `kg-discovery` block naming the daily folder, today's filename, and the (optional) insertion anchor — derived from what the vault README documents.
 2. The recap session block itself.

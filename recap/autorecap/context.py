@@ -4,10 +4,8 @@ import dataclasses
 import datetime as _dt
 import json
 import pathlib
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from recap_common import log, read_cursor  # noqa: E402
+from ..shared.cursor import read_cursor
+from ..shared.hook_io import log
 
 
 @dataclasses.dataclass(frozen=True)

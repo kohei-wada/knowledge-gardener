@@ -7,8 +7,7 @@ import re
 import subprocess
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from recap_common import log  # noqa: E402
+from ..shared.hook_io import log
 
 COMMIT_SUBJECT_LIMIT = 72
 

@@ -16,23 +16,14 @@ import sys
 import time
 import traceback
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from recap_common import (  # noqa: E402
-    DEBOUNCE_SECONDS,
-    DEFAULT_TIMEOUT,
-    _resolve_under_vault,
-    debounce_marker,
-    emit_continue,
-    log,
-    plugin_root,
-    read_text,
-    session_log_path,
-    write_cursor,
-)
-from recap_context import RecapContext  # noqa: E402
-from session_aggregator import SessionAggregator  # noqa: E402
-from daily_note_resolver import DailyNoteResolver  # noqa: E402
-from daily_note import DailyNote, extract_block, extract_topic  # noqa: E402
+from ..shared.hook_io import DEBOUNCE_SECONDS, DEFAULT_TIMEOUT, emit_continue, log
+from ..shared.fs import _resolve_under_vault, plugin_root, read_text
+from ..shared.paths import debounce_marker, session_log_path
+from ..shared.cursor import write_cursor
+from .context import RecapContext
+from .session_aggregator import SessionAggregator
+from .daily_note_resolver import DailyNoteResolver
+from .daily_note import DailyNote, extract_block, extract_topic
 
 
 def load_vault_context(vault: pathlib.Path) -> tuple[str, str]:
@@ -131,12 +122,12 @@ class AutoRecap:
                 )
             except OSError:
                 existing_daily = "(file does not exist yet)"
-            prompt_template_path = plugin_root() / "recap" / "prompts" / "auto_recap_compose_prompt.md"
+            prompt_template_path = plugin_root() / "recap" / "autorecap" / "prompts" / "auto_recap_compose_prompt.md"
         else:
             daily_path = None
             insert_before = ""
             existing_daily = "(unknown until folder is discovered)"
-            prompt_template_path = plugin_root() / "recap" / "prompts" / "auto_recap_prompt.md"
+            prompt_template_path = plugin_root() / "recap" / "autorecap" / "prompts" / "auto_recap_prompt.md"
 
         if not prompt_template_path.is_file():
             log(f"prompt template missing: {prompt_template_path}")

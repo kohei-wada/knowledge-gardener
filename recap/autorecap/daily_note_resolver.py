@@ -8,9 +8,10 @@ import pathlib
 import re
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from recap_common import _resolve_under_vault, discovery_cache_path, log  # noqa: E402
-from recap_context import RecapContext  # noqa: E402
+from ..shared.fs import _resolve_under_vault
+from ..shared.paths import discovery_cache_path
+from ..shared.hook_io import log
+from .context import RecapContext
 
 # --- Discovery cache --------------------------------------------------------
 #

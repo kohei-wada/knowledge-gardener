@@ -1,17 +1,17 @@
 """Shared path helpers for knowledge-gardener machine-local state.
 
 Used by:
-- recap/capture.py (PostToolUse hook — writes session log entries)
-- recap/recap_aggregate.py (reads session logs)
-- recap/auto_recap.py (reads session log, writes debounce marker)
+- recap/capture/ (PostToolUse hook — writes session log entries)
+- recap/aggregate/ (reads session logs)
+- recap/autorecap/ (reads session log, writes debounce marker)
 
 All three previously duplicated the XDG_STATE_HOME resolution and the
 "<state>/knowledge-gardener/sessions/" path construction. Centralized here
 so future changes (e.g. moving sessions/ to data/ per XDG, or adding
 encryption) happen in one place.
 
-Plain stdlib only (no third-party deps), since `capture.py` runs inside a
-synchronous PostToolUse hook and `auto_recap.py` runs inside a Stop hook
+Plain stdlib only (no third-party deps), since the capture hook runs inside a
+synchronous PostToolUse hook and the auto-recap hook runs inside a Stop hook
 — neither can afford an import-time pip dependency.
 """
 from __future__ import annotations

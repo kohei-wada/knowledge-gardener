@@ -19,7 +19,6 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-AUTO_RECAP = REPO_ROOT / "recap" / "auto_recap.py"
 
 # Neutral layout the test vault uses (created by make_vault). Names are
 # intentionally generic — knowledge-gardener is format-agnostic, so the test
@@ -140,10 +139,11 @@ def run_hook(payload: dict, *, env_extra: dict[str, str], state_home: Path) -> s
     env["HOME"] = str(state_home.parent / "fakehome")
     Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
     env["KG_AUTO_RECAP_NO_PUSH"] = "1"  # never push during tests
+    env["PYTHONPATH"] = str(REPO_ROOT)
     for k, v in env_extra.items():
         env[k] = v
     return subprocess.run(
-        [sys.executable, str(AUTO_RECAP)],
+        [sys.executable, "-m", "recap.autorecap"],
         input=json.dumps(payload),
         text=True,
         capture_output=True,
@@ -513,8 +513,9 @@ def test_malformed_stdin_does_not_crash(tmp_path):
     env["XDG_STATE_HOME"] = str(tmp_path / "state")
     env["HOME"] = str(tmp_path / "home")
     Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
+    env["PYTHONPATH"] = str(REPO_ROOT)
     res = subprocess.run(
-        [sys.executable, str(AUTO_RECAP)],
+        [sys.executable, "-m", "recap.autorecap"],
         input="not json {",
         text=True,
         capture_output=True,

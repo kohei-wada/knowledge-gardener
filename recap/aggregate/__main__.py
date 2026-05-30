@@ -17,9 +17,7 @@ import sys
 from collections import Counter, OrderedDict
 from typing import Iterable
 
-# Shared path helpers live next to this file at recap/recap_aggregate.py.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from kg_paths import sessions_dir  # noqa: E402
+from ..shared.paths import sessions_dir
 
 LINE_RE = re.compile(
     r"^(?P<hhmm>\d{2}:\d{2})\s+"

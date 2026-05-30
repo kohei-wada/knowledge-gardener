@@ -14,9 +14,7 @@ import pathlib
 import re
 import sys
 
-# Shared path helpers live next to this file at recap/capture.py.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from kg_paths import session_log_path  # noqa: E402
+from ..shared.paths import session_log_path
 
 ALWAYS_SKIP = frozenset({
     "Read",

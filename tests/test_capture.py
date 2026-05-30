@@ -16,16 +16,16 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CAPTURE = REPO_ROOT / "recap" / "capture.py"
 
 
 def run_capture(payload: dict | None, *, tmp_path: Path, raw: str | None = None) -> tuple[str, str, Path]:
     """Run capture.py with payload on stdin. Returns (stdout, stderr, log_dir)."""
     env = os.environ.copy()
     env["XDG_STATE_HOME"] = str(tmp_path)
+    env["PYTHONPATH"] = str(REPO_ROOT)
     body = raw if raw is not None else (json.dumps(payload) if payload is not None else "")
     proc = subprocess.run(
-        [sys.executable, str(CAPTURE)],
+        [sys.executable, "-m", "recap.capture"],
         input=body,
         text=True,
         capture_output=True,
@@ -246,9 +246,10 @@ def test_log_dir_creation_failure_does_not_crash(tmp_path):
     blocker.write_text("x")
     env = os.environ.copy()
     env["XDG_STATE_HOME"] = str(blocker)  # not a directory
+    env["PYTHONPATH"] = str(REPO_ROOT)
     payload = {"session_id": "testsess", "tool_name": "Edit", "tool_input": {"file_path": "/a/b.md"}}
     proc = subprocess.run(
-        [sys.executable, str(CAPTURE)],
+        [sys.executable, "-m", "recap.capture"],
         input=json.dumps(payload),
         text=True,
         capture_output=True,

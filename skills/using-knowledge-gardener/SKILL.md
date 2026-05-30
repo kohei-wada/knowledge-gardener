@@ -17,8 +17,9 @@ You have access to skills for tending the user's long-term knowledge base (the "
 | `knowledge-gardener:garden-connect` | Link an existing MOC and an existing child note (atomic graph-edge insertion, bi-directional by default) |
 | `knowledge-gardener:garden-prune` | Remove an existing note — archive by default (git mv into the vault's archive folder), hard-delete only on explicit request. Surfaces inbound-link warnings; never auto-rewrites links |
 | `knowledge-gardener:garden-recap` | Wrap up the current Claude Code session by writing what was worked on to today's daily note, so the next session can pick up context |
+| `knowledge-gardener:garden-harvest` | Turn mature vault knowledge into a published blog post — gather the relevant permanent notes, shape the post in dialogue (no stored draft), mask PII, emit into the blog repo per that repo's conventions |
 
-CRUD is complete: garden-plant (C), garden-survey (R), garden-water (U), garden-prune (D). garden-connect adds the link primitive; garden-recap handles session wrap-up.
+CRUD is complete: garden-plant (C), garden-survey (R), garden-water (U), garden-prune (D). garden-connect adds the link primitive; garden-recap handles session wrap-up; garden-harvest publishes knowledge out to the blog repo.
 
 ## The Format Contract
 
@@ -130,6 +131,12 @@ If the vault is not a git repo (`$KG_VAULT/.git` absent), skip the lint/commit/p
 
 "ここまでまとめて daily に書いて" / "wrap up" / "今日の作業まとめて" / "recap this session"
   → garden-recap
+
+"blog 化して" / "記事化して" / "publish this as a post" / "ブログにして"
+  → garden-harvest
+
+(internal — garden-survey surfaced a cluster of permanent notes worth publishing)
+  → garden-harvest (propose; gather from the vault, emit into the blog repo, never store a draft)
 ```
 
 ## The Rule
@@ -145,6 +152,7 @@ The `garden-plant` skill handles the detailed decision tree, but at the entry la
 These variables are referenced by all knowledge-gardener skills. Do not redefine in individual skills.
 
 - `KG_VAULT` = value of the `KG_VAULT` environment variable. If unset, skills MUST stop and tell the user: "Set `KG_VAULT` to your vault root (e.g. `export KG_VAULT=~/notes`) and restart the session."
+- `KG_BLOG_REPO` = value of the `KG_BLOG_REPO` environment variable — a local path to the blog repo clone, used only by `garden-harvest`. If unset (or the path does not exist), `garden-harvest` MUST stop and tell the user: "Set `KG_BLOG_REPO` to your blog repo root (e.g. `export KG_BLOG_REPO=~/src/blog`) and restart the session." Other skills do not use it.
 
 The vault can be any directory of markdown files with a `README.md` describing its conventions — Obsidian, plain markdown, or anything else.
 

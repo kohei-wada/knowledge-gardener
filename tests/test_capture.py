@@ -318,3 +318,14 @@ def test_bash_without_cd_prefix_unchanged(tmp_path):
         tmp_path=tmp_path,
     )
     assert "target=git commit -m x" in read_today_log(log_dir)
+
+
+def test_bash_cd_prefix_does_not_eat_command_starting_with_cd(tmp_path):
+    # The `cd ` guard requires a trailing space, so a command whose name merely
+    # starts with "cd" (e.g. `cdburn`) is NOT mistaken for a cd wrapper.
+    _, _, log_dir = run_capture(
+        {"session_id": "testsess", "tool_name": "Bash",
+         "tool_input": {"command": "cd /tmp && cdburn --foo"}},
+        tmp_path=tmp_path,
+    )
+    assert "target=cdburn --foo" in read_today_log(log_dir)

@@ -26,7 +26,7 @@ from .daily_note_resolver import DailyNoteResolver
 from .daily_note import DailyNote
 from .gate import is_substantive
 from .transcript import slice_transcript
-from .block import extract_kpt_section, topic_from_kpt
+from .block import extract_kpt_section, extract_timeline_bullets, topic_from_kpt
 
 
 def load_vault_context(vault: pathlib.Path) -> tuple[str, str]:
@@ -121,6 +121,8 @@ class AutoRecap:
         else:
             daily_path, insert_before = None, ""  # resolved from discovery after the LLM call
 
+        det_bullets = agg.timeline          # whole-session, deterministic, filtered
+        timeline_bullets = det_bullets
         kpt_section: str | None = None
         topic = ""
 
@@ -149,23 +151,29 @@ class AutoRecap:
             })
             timeout = int(os.environ.get("KG_AUTO_RECAP_TIMEOUT", str(DEFAULT_TIMEOUT)))
             out = call_claude(prompt, timeout=timeout)
-            if not out:
+            if out:
+                if pre is None:
+                    resolved = resolver.resolve_from_discovery(out)
+                    if resolved is None:
+                        return
+                    daily_path, insert_before = resolved
+                ai_bullets = extract_timeline_bullets(out)
+                if ai_bullets:
+                    timeline_bullets = ai_bullets
+                kpt_section = extract_kpt_section(out)
+                if kpt_section is None:
+                    log("claude output missing ### KPT section; writing Timeline only")
+                else:
+                    topic = topic_from_kpt(kpt_section)
+            elif pre is None:
+                log("claude failed and no pre-resolved daily path -> skip")
                 return
-            if pre is None:
-                resolved = resolver.resolve_from_discovery(out)
-                if resolved is None:
-                    return
-                daily_path, insert_before = resolved
-            kpt_section = extract_kpt_section(out)
-            if kpt_section is None:
-                log("claude output missing ### KPT section; appending Timeline only")
-            else:
-                topic = topic_from_kpt(kpt_section)
+            # else: claude failed but path is known -> fall through, write deterministic block
 
         note = DailyNote(ctx.vault, daily_path)
         if not note.apply_block(
             ctx.sid8, start_hhmm=agg.start_hhmm, end_hhmm=agg.end_hhmm, topic=topic,
-            timeline_bullets=agg.timeline, kpt_section=kpt_section, insert_before=insert_before,
+            timeline_bullets=timeline_bullets, kpt_section=kpt_section, insert_before=insert_before,
         ):
             write_cursor(ctx.sid8, agg.end_hhmm)
             return

@@ -41,7 +41,7 @@ From the conventions + template, extract for this skill (at minimum):
 
 If any of these are not discoverable from the README or templates, stop and ask the user. Do not invent defaults.
 
-Format today's date per the filename convention and build the absolute daily-note path under the daily-note folder. Hold onto this path — Step 4 / Step 5 pass it to the CLI as `--daily-path`. (The CLI creates the daily note from the template if it does not yet exist, so you do not pre-create it.)
+Format today's date per the filename convention and build the absolute daily-note path under the daily-note folder. Hold onto this path — Step 4 / Step 5 pass it to the CLI as `--daily-path`. The CLI only **appends** the `kg-recap-sid` recap block; it does **not** seed the daily-note template. So if today's note does not exist yet, create it from the template first (Write tool) so it carries the vault's frontmatter/sections, then run the CLI.
 
 ### Step 2: Identify the Session & Gather the Timeline
 

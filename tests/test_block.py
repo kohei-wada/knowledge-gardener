@@ -1,4 +1,4 @@
-from recap.autorecap.block import upsert_session_block, extract_kpt_section
+from recap.autorecap.block import upsert_session_block, extract_kpt_section, topic_from_kpt
 
 KPT1 = "### KPT\n- Keep: a\n- Problem: b\n- Try: c"
 KPT2 = "### KPT\n- Keep: updated\n- Problem: b2\n- Try: c2"
@@ -139,9 +139,6 @@ def test_extract_kpt_section_stops_at_next_heading():
     sec = extract_kpt_section(llm)
     assert "Keep: x" in sec
     assert "## Next" not in sec
-
-
-from recap.autorecap.block import topic_from_kpt
 
 
 def test_topic_from_kpt_uses_first_keep_bullet():

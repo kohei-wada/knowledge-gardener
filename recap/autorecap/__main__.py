@@ -26,7 +26,7 @@ from .daily_note_resolver import DailyNoteResolver
 from .daily_note import DailyNote
 from .gate import is_substantive
 from .transcript import slice_transcript
-from .block import extract_kpt_section
+from .block import extract_kpt_section, topic_from_kpt
 
 
 def load_vault_context(vault: pathlib.Path) -> tuple[str, str]:
@@ -160,7 +160,7 @@ class AutoRecap:
             if kpt_section is None:
                 log("claude output missing ### KPT section; appending Timeline only")
             else:
-                topic = self._topic_from_kpt(kpt_section)
+                topic = topic_from_kpt(kpt_section)
 
         note = DailyNote(ctx.vault, daily_path)
         if not note.apply_block(
@@ -196,15 +196,6 @@ class AutoRecap:
         om = _open_re(sid8).search(text)
         cm = _close_re(sid8).search(text)
         return text[om.start():cm.end()] if om and cm and cm.start() > om.start() else ""
-
-    @staticmethod
-    def _topic_from_kpt(kpt_section: str) -> str:
-        for line in kpt_section.splitlines():
-            s = line.strip()
-            if s.lower().startswith("- keep:"):
-                return s.split(":", 1)[1].strip()[:30]
-        return ""
-
 
 def main() -> None:
     try:

@@ -24,6 +24,15 @@ def extract_kpt_section(text: str) -> str | None:
     return m.group(0).rstrip()
 
 
+def topic_from_kpt(kpt_section: str) -> str:
+    """Derive a short topic from the KPT's first `Keep:` bullet (≤30 chars)."""
+    for line in kpt_section.splitlines():
+        s = line.strip()
+        if s.lower().startswith("- keep:"):
+            return s.split(":", 1)[1].strip()[:30]
+    return ""
+
+
 def _render_header(start: str, end: str, topic: str) -> str:
     base = f"## Session {start}〜{end}"
     return f"{base}  {topic}".rstrip() if topic else base

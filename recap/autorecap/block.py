@@ -15,6 +15,10 @@ def _close_re(sid8: str) -> re.Pattern:
 _HEADER_RE = re.compile(r"^##[ \t]+Session[ \t]+(\d{2}:\d{2})[ \t]*[〜~][ \t]*(\d{2}:\d{2})[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 _KPT_RE = re.compile(r"^### KPT[ \t]*\n.*?(?=\n## |\n<!-- /kg-recap-sid:|\Z)", re.DOTALL | re.MULTILINE)
 _TIMELINE_RE = re.compile(r"(^### Timeline[ \t]*\n)(.*?)(?=\n### |\n## |\n<!-- /kg-recap-sid:|\Z)", re.DOTALL | re.MULTILINE)
+_TIMELINE_SECTION_RE = re.compile(
+    r"^### Timeline[ \t]*\n.*?(?=\n### |\n## |\n<!-- /kg-recap-sid:|\Z)",
+    re.DOTALL | re.MULTILINE,
+)
 
 
 _TIMELINE_TIME_RE = re.compile(r"^-\s+(\d{2}:\d{2})")
@@ -34,6 +38,16 @@ def extract_kpt_section(text: str) -> str | None:
     if not m:
         return None
     return m.group(0).rstrip()
+
+
+def extract_timeline_bullets(text: str) -> list[str] | None:
+    """Pull the bullet lines out of an LLM-emitted `### Timeline` section.
+    Returns None when no Timeline section is present (LLM omitted it)."""
+    m = _TIMELINE_SECTION_RE.search(text)
+    if not m:
+        return None
+    lines = m.group(0).splitlines()[1:]  # drop the "### Timeline" header line
+    return [ln for ln in lines if ln.strip()]
 
 
 def topic_from_kpt(kpt_section: str) -> str:

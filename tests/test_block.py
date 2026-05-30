@@ -1,4 +1,4 @@
-from recap.autorecap.block import upsert_session_block, extract_kpt_section, topic_from_kpt
+from recap.autorecap.block import upsert_session_block, extract_kpt_section, topic_from_kpt, extract_timeline_bullets
 
 KPT1 = "### KPT\n- Keep: a\n- Problem: b\n- Try: c"
 KPT2 = "### KPT\n- Keep: updated\n- Problem: b2\n- Try: c2"
@@ -193,6 +193,25 @@ def test_update_keeps_existing_start_when_new_is_later():
         timeline_bullets=["- 10:00  Edit b.py"], kpt_section=KPT1,
     )
     assert "## Session 09:00〜10:05  t" in second
+
+
+def test_extract_timeline_bullets_from_llm_output():
+    out = (
+        "### Timeline\n"
+        "- 09:00–09:10 設計メモを作成\n"
+        "- 09:10–09:30 実装\n"
+        "\n"
+        "### KPT\n"
+        "- Keep: x\n"
+    )
+    assert extract_timeline_bullets(out) == [
+        "- 09:00–09:10 設計メモを作成",
+        "- 09:10–09:30 実装",
+    ]
+
+
+def test_extract_timeline_bullets_absent_returns_none():
+    assert extract_timeline_bullets("### KPT\n- Keep: x\n") is None
 
 
 def test_timeline_malformed_bullet_sorts_last():

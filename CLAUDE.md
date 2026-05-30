@@ -22,7 +22,7 @@ knowledge-gardener is a Claude Code skill library (plugin) that decides **when**
 The user-facing skill list (purposes, status) lives in [README.md](README.md#skills) — see it there to avoid drift. Maintainer-relevant detail:
 
 - Entry point: `using-knowledge-gardener` (declares variables, the format contract, common workflow steps).
-- Operational skills: `garden-plant` (C), `garden-survey` (R), `garden-water` (U), `garden-prune` (D), plus `garden-connect` (link edges) and `garden-recap` (session wrap-up).
+- Operational skills: `garden-plant` (C), `garden-survey` (R), `garden-water` (U), `garden-prune` (D), plus `garden-connect` (link edges), `garden-recap` (session wrap-up), and `garden-harvest` (publish knowledge into the blog repo via `KG_BLOG_REPO`; commit-not-push).
 - Each operational SKILL.md references the canonical "Pre-flight Setup" and "Common Workflow Steps" sections inside `using-knowledge-gardener` rather than duplicating them.
 
 ## Key Conventions

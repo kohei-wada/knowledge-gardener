@@ -22,9 +22,11 @@ _TIMELINE_TIME_RE = re.compile(r"^-\s+(\d{2}:\d{2})")
 
 def _timeline_sort_key(line: str) -> str:
     """Sort key for a Timeline bullet — its leading `HH:MM` (zero-padded, so
-    lexical order is chronological). Stable sort keeps same-minute order."""
+    lexical order is chronological). Stable sort keeps same-minute order.
+    render_timeline always emits a timestamp; a line without one (only possible
+    via hand-editing) sorts last rather than jumping ahead of real entries."""
     m = _TIMELINE_TIME_RE.match(line)
-    return m.group(1) if m else ""
+    return m.group(1) if m else "99:99"
 
 
 def extract_kpt_section(text: str) -> str | None:

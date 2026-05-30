@@ -193,3 +193,19 @@ def test_update_keeps_existing_start_when_new_is_later():
         timeline_bullets=["- 10:00  Edit b.py"], kpt_section=KPT1,
     )
     assert "## Session 09:00〜10:05  t" in second
+
+
+def test_timeline_malformed_bullet_sorts_last():
+    # A hand-edited Timeline line without a HH:MM timestamp must not jump ahead
+    # of real chronological entries — it sorts to the end.
+    block = (
+        "<!-- kg-recap-sid:abc12345 -->\n## Session 09:00〜09:05  t\n\n"
+        "### Timeline\n- 09:05  Edit b.py\n- garbage no timestamp\n\n"
+        "### KPT\n- Keep: x\n<!-- /kg-recap-sid:abc12345 -->\n"
+    )
+    out = upsert_session_block(
+        block, "abc12345", start_hhmm="09:00", end_hhmm="09:10", topic="t",
+        timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
+    )
+    assert out.index("- 09:00  Edit a.py") < out.index("- garbage no timestamp")
+    assert out.index("- 09:05  Edit b.py") < out.index("- garbage no timestamp")

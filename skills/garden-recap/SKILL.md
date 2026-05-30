@@ -77,9 +77,11 @@ Only for the no-capture-log case. This is the older free-form, template-driven r
 
 **Then STOP** — the no-log case is done here.
 
-### Step 3: Author the KPT
+### Step 3: Author the KPT and Timeline
 
-A capture log exists (Step 2). From the **full conversation** (richer than the hook's transcript slice), write a `### KPT` section using the vault's KPT convention (Keep / Problem / Try, per the README/template). Cap each list to ~5 bullets.
+A capture log exists (Step 2). From the **full conversation** (richer than the hook's transcript slice):
+
+**Author the `### KPT` section** using the vault's KPT convention (Keep / Problem / Try, per the README/template). Cap each list to ~5 bullets.
 
 - Facts for "what happened" come from the Timeline / conversation / `git log`. Keep / Problem / Try are *interpretation* — what to repeat, what hurt, what to try next.
 - Write in the README's declared language and link syntax.
@@ -90,7 +92,20 @@ KPT_FILE="$(mktemp --suffix=.md)"
 # write the "### KPT\n..." content into "$KPT_FILE" (Write tool)
 ```
 
-The CLI replaces the block's existing KPT with this file's content; it does NOT touch the Timeline's prior entries.
+**Also author a `### Timeline` activity log** using the aggregator timeline (from Step 2 JSON) plus the full conversation as sources. Apply the same activity-unit rules as the auto path:
+
+- Group into **coherent ACTIVITY units** — not per-minute tool calls. One bullet per unit.
+- Each bullet is prefixed with its `HH:MM–HH:MM` time range.
+- Say **WHAT was done and WHY**, not which tools were called.
+- Target **5–12 bullets**. Facts only — no invented links or outcomes.
+- Write in Japanese.
+
+```bash
+TIMELINE_FILE="$(mktemp --suffix=.md)"
+# write "### Timeline\n- HH:MM–HH:MM <activity>\n..." into "$TIMELINE_FILE" (Write tool)
+```
+
+The CLI replaces the block's existing KPT with `$KPT_FILE`'s content and uses `$TIMELINE_FILE` as the Timeline when `--timeline-file` is passed. Omitting `--timeline-file` falls back to the deterministic filtered timeline aggregated from the capture log.
 
 ### Step 4: Preview (Propose, Don't Commit)
 
@@ -98,7 +113,8 @@ With the daily-note path from Step 1 and `<sid8>` from Step 2, preview the upser
 
 ```bash
 PYTHONPATH="${CLAUDE_PLUGIN_ROOT}" python3 -m recap.manual_recap \
-  --sid <sid8> --daily-path <abs daily path> --kpt-file "$KPT_FILE" --dry-run
+  --sid <sid8> --daily-path <abs daily path> \
+  --kpt-file "$KPT_FILE" --timeline-file "$TIMELINE_FILE" --dry-run
 ```
 
 `--dry-run` prints a unified diff of the daily note and writes nothing. Show that diff to the user with the one-line rationale: "Capturing today's session into the per-session recap block so the next session can pick up context."
@@ -113,10 +129,11 @@ Re-run the SAME command **without** `--dry-run`:
 
 ```bash
 PYTHONPATH="${CLAUDE_PLUGIN_ROOT}" python3 -m recap.manual_recap \
-  --sid <sid8> --daily-path <abs daily path> --kpt-file "$KPT_FILE"
+  --sid <sid8> --daily-path <abs daily path> \
+  --kpt-file "$KPT_FILE" --timeline-file "$TIMELINE_FILE"
 ```
 
-The CLI writes the two-layer block atomically (Timeline append-with-dedup, KPT replace), derives the topic from the KPT's first `Keep:` bullet, commits (`water: <date> <HH:MM> 〜 <topic>`), and advances the per-session cursor — so a later auto `Stop` inherits this KPT as prior-KPT instead of overwriting it.
+The CLI writes the two-layer block atomically (Timeline from `$TIMELINE_FILE`, KPT replace), derives the topic from the KPT's first `Keep:` bullet, commits (`water: <date> <HH:MM> 〜 <topic>`), and advances the per-session cursor — so a later auto `Stop` inherits this KPT as prior-KPT instead of overwriting it.
 
 Don't `--no-verify` and don't hand-edit the block afterward. If you need a different insertion point for a brand-new block, pass `--insert-before <heading>` (default appends at EOF); to write without committing, pass `--no-commit`.
 

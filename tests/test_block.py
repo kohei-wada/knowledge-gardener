@@ -139,3 +139,20 @@ def test_extract_kpt_section_stops_at_next_heading():
     sec = extract_kpt_section(llm)
     assert "Keep: x" in sec
     assert "## Next" not in sec
+
+
+from recap.autorecap.block import topic_from_kpt
+
+
+def test_topic_from_kpt_uses_first_keep_bullet():
+    kpt = "### KPT\n- Keep: webdav relay を deploy した\n- Problem: x\n- Try: y"
+    assert topic_from_kpt(kpt) == "webdav relay を deploy した"
+
+
+def test_topic_from_kpt_truncates_to_30_chars():
+    long = "あ" * 50
+    assert topic_from_kpt(f"### KPT\n- Keep: {long}") == "あ" * 30
+
+
+def test_topic_from_kpt_empty_when_no_keep():
+    assert topic_from_kpt("### KPT\n- Problem: only") == ""

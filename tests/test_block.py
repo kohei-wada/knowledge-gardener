@@ -98,6 +98,15 @@ def test_legacy_hhmm_marker_not_collided():
     assert out.count("<!-- kg-recap-sid:abc12345 -->") == 1
 
 
+def test_upsert_is_byte_idempotent_on_identical_reapply():
+    kwargs = dict(start_hhmm="09:00", end_hhmm="09:05", topic="t",
+                  timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1)
+    once = upsert_session_block("", "abc12345", **kwargs)
+    twice = upsert_session_block(once, "abc12345", **kwargs)
+    thrice = upsert_session_block(twice, "abc12345", **kwargs)
+    assert once == twice == thrice  # fixed point — re-applying identical inputs changes nothing
+
+
 def test_extract_kpt_section():
     llm = "### KPT\n- Keep: x\n- Problem: y\n- Try: z\n"
     assert extract_kpt_section(llm).startswith("### KPT")

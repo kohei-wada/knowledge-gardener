@@ -161,12 +161,8 @@ def test_daily_note_apply_block_noop_when_identical(tmp_path):
     folder.mkdir(parents=True)
     daily_path = folder / "2026-05-29.md"
     note = daily_note.DailyNote(vault, daily_path)
-    # First apply creates the block; the second re-apply normalizes the
-    # surrounding blank lines (a one-time, benign whitespace collapse the
-    # upsert performs when re-coalescing an existing block).
+    # First apply creates the block; a second identical apply is a true no-op.
     assert _apply(note) is True
-    _apply(note)
-    # Once normalized, a further identical apply is a true no-op.
     assert _apply(note) is False
 
 

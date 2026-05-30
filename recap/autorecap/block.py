@@ -71,6 +71,10 @@ def upsert_session_block(note_text: str, sid8: str, *, start_hhmm: str, end_hhmm
             else:
                 close = _close_re(sid8).search(block)
                 block = block[:close.start()].rstrip() + "\n\n" + kpt_section.rstrip() + "\n" + block[close.start():]
+        # normalize section spacing so re-applying identical inputs is a byte-level no-op
+        # (matches _new_block: one blank line before each ### subheading, none before the close marker)
+        block = re.sub(r"\n+(### )", r"\n\n\1", block)
+        block = re.sub(r"\n+(<!--\s*/kg-recap-sid:)", r"\n\1", block)
         return note_text[:om.start()] + block + note_text[cm.end():]
 
     # block absent → build and insert

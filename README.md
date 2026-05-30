@@ -114,14 +114,19 @@ export KG_DAILY_FOLDER='<folder-relative-to-KG_VAULT>'              # override d
 export KG_DAILY_FILENAME='<filename for today, e.g. 2026-05-21.md>'  # override discovery
 export KG_DAILY_TEMPLATE='<path/to/daily-template.md>'              # extra context for Claude's recap composition
 export KG_DAILY_INSERT_BEFORE='## <heading the block must precede>' # override discovery; default = append at EOF
+# Substance gate — controls when the KPT section is (re)generated
+export KG_RECAP_MIN_CALLS=5    # tool-call threshold (default 5)
+export KG_RECAP_MIN_MINUTES=5  # duration threshold in minutes (default 5)
 ```
 
-When set, every Claude "stop" event triggers `recap/autorecap/` which spawns headless `claude -p` with the session log + vault README. Claude returns two blocks:
+When set, every Claude "stop" event triggers `recap/autorecap/` which spawns headless `claude -p` with the session log + vault README. The script maintains **one coalesced block per session** (keyed by `kg-recap-sid:{sid8}`) in today's daily note. The block has two layers:
 
-1. A `kg-discovery` block naming the daily folder, today's filename, and the (optional) insertion anchor — derived from what the vault README documents.
-2. The recap session block itself.
+1. An append-only mechanical `### Timeline` — updated on every Stop with new entries from the session log.
+2. A `### KPT` section — regenerated from the conversation transcript only on "substantive" Stops.
 
-The script then writes / updates today's session block in the daily note and `git commit && git push`. The block is keyed by `<sid8>` so repeated stops within one session replace in place rather than appending duplicates.
+A Stop is substantive if it produced a durable change (Edit/Write, git commit/push, Agent dispatch), OR tool-call count >= `KG_RECAP_MIN_CALLS`, OR duration >= `KG_RECAP_MIN_MINUTES`. Non-substantive Stops append Timeline only and spend no LLM call.
+
+The script writes / updates the block in the daily note and `git commit && git push`. The `kg-discovery` block (naming the daily folder, today's filename, and optional insertion anchor) is derived from the vault README at each Stop event.
 
 This is the **format-agnostic** path: the script never assumes folder names like `04_DailyNotes` — Claude reads the vault README at every Stop event and adapts. The env-var overrides exist for users who want to skip discovery or whose README doesn't document a daily-note convention. If both discovery and env are absent, auto-recap silently degrades to a no-op (it never guesses a folder).
 

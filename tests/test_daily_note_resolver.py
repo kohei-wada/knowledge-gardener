@@ -32,31 +32,44 @@ def test_recap_context_from_hook_builds_facts(monkeypatch, tmp_path):
 
 
 def test_session_aggregator_returns_none_when_no_sessions(monkeypatch, tmp_path):
-    monkeypatch.setattr(session_aggregator, "run_aggregator", lambda sid8, since=None: None)
-    ctx = recap_context.RecapContext(sid8="abcd1234", vault=tmp_path, today_str="2026-05-29", since=None)
+    monkeypatch.setattr(session_aggregator, "_run_aggregator_json", lambda sid8, since=None: None)
+    ctx = recap_context.RecapContext(
+        sid8="abcd1234", vault=tmp_path, today_str="2026-05-29", since=None, transcript_path=None
+    )
     agg = session_aggregator.SessionAggregator(ctx).aggregate()
     assert agg is None
 
 
 def test_session_aggregator_parses_window(monkeypatch, tmp_path):
-    fake_out = (
-        "# Sessions on 2026-05-29\n1 session(s) found.\n\n"
-        "## Session 09:00 - 09:30 (sid8: abcd1234)\n"
-        "Duration: 30m, 5 captured tool calls.\n"
+    fake_session = {
+        "first_hhmm": "09:00",
+        "last_hhmm": "09:30",
+        "entry_count": 5,
+        "duration_min": 30,
+        "durable_change": True,
+        "timeline": ["- 09:00  Edit a.md", "- 09:30  Bash: git commit"],
+    }
+    monkeypatch.setattr(session_aggregator, "_run_aggregator_json", lambda sid8, since=None: fake_session)
+    ctx = recap_context.RecapContext(
+        sid8="abcd1234", vault=tmp_path, today_str="2026-05-29", since=None, transcript_path=None
     )
-    monkeypatch.setattr(session_aggregator, "run_aggregator", lambda sid8, since=None: fake_out)
-    ctx = recap_context.RecapContext(sid8="abcd1234", vault=tmp_path, today_str="2026-05-29", since=None)
     agg = session_aggregator.SessionAggregator(ctx).aggregate()
     assert agg is not None
-    assert agg.text == fake_out
     assert agg.start_hhmm == "09:00"
     assert agg.end_hhmm == "09:30"
+    assert agg.entry_count == 5
+    assert agg.duration_min == 30
+    assert agg.durable_change is True
+    assert agg.timeline == ["- 09:00  Edit a.md", "- 09:30  Bash: git commit"]
 
 
 def _ctx_with_vault(tmp_path):
     vault = tmp_path / "vault"
     (vault / "04_DailyNotes").mkdir(parents=True)
-    return recap_context.RecapContext(sid8="abcd1234", vault=vault, today_str="2026-05-29", since=None), vault
+    ctx = recap_context.RecapContext(
+        sid8="abcd1234", vault=vault, today_str="2026-05-29", since=None, transcript_path=None
+    )
+    return ctx, vault
 
 
 def test_resolver_pre_resolve_hits_via_env(monkeypatch, tmp_path):
@@ -118,16 +131,28 @@ def test_resolver_persist_cache_writes_on_miss(monkeypatch, tmp_path):
     assert written["discovery"]["folder"] == "04_DailyNotes"
 
 
+def _apply(note, sid8="abcd1234", *, start="09:00", end="09:30", topic="x",
+           timeline=None, kpt="### KPT\n\n- Keep: ok\n", insert_before=""):
+    return note.apply_block(
+        sid8, start_hhmm=start, end_hhmm=end, topic=topic,
+        timeline_bullets=timeline if timeline is not None else ["- 09:00  Edit a.md"],
+        kpt_section=kpt, insert_before=insert_before,
+    )
+
+
 def test_daily_note_apply_block_writes_file(tmp_path):
     vault = tmp_path / "vault"
     folder = vault / "04_DailyNotes"
     folder.mkdir(parents=True)
     daily_path = folder / "2026-05-29.md"
     note = daily_note.DailyNote(vault, daily_path)
-    block = "<!-- kg-recap-sid:abcd1234-0900 -->\n## Session 09:00 〜 x\n<!-- /kg-recap-sid:abcd1234-0900 -->"
-    changed = note.apply_block("abcd1234-0900", block, insert_before="")
+    changed = _apply(note)
     assert changed is True
-    assert "kg-recap-sid:abcd1234-0900" in daily_path.read_text()
+    text = daily_path.read_text()
+    assert "<!-- kg-recap-sid:abcd1234 -->" in text
+    assert "### Timeline" in text
+    assert "- 09:00  Edit a.md" in text
+    assert "### KPT" in text
 
 
 def test_daily_note_apply_block_noop_when_identical(tmp_path):
@@ -136,10 +161,26 @@ def test_daily_note_apply_block_noop_when_identical(tmp_path):
     folder.mkdir(parents=True)
     daily_path = folder / "2026-05-29.md"
     note = daily_note.DailyNote(vault, daily_path)
-    block = "<!-- kg-recap-sid:abcd1234-0900 -->\nx\n<!-- /kg-recap-sid:abcd1234-0900 -->"
-    assert note.apply_block("abcd1234-0900", block, "") is True
-    # second identical apply → no change
-    assert note.apply_block("abcd1234-0900", block, "") is False
+    # First apply creates the block; a second identical apply is a true no-op.
+    assert _apply(note) is True
+    assert _apply(note) is False
+
+
+def test_daily_note_apply_block_cleans_tmp_on_replace_failure(tmp_path, monkeypatch):
+    vault = tmp_path / "vault"
+    folder = vault / "04_DailyNotes"
+    folder.mkdir(parents=True)
+    daily_path = folder / "2026-05-29.md"
+    note = daily_note.DailyNote(vault, daily_path)
+
+    def boom(src, dst):
+        raise OSError("cross-device move")
+
+    monkeypatch.setattr(daily_note.os, "replace", boom)
+    assert _apply(note) is False
+    assert not daily_path.exists()
+    # the temp file must not be left behind in the vault
+    assert list(folder.glob("*.tmp")) == []
 
 
 def test_daily_note_has_repo_false_when_no_git(tmp_path):

@@ -14,6 +14,7 @@ class RecapContext:
     vault: pathlib.Path
     today_str: str
     since: str | None
+    transcript_path: str | None
 
     @classmethod
     def from_hook(cls, raw_stdin: str, dict_env: dict[str, str]) -> "RecapContext | None":
@@ -35,10 +36,12 @@ class RecapContext:
             log("KG_VAULT unset or invalid")
             return None
         sid8 = (payload.get("session_id") or "")[:8] or "unknown"
+        transcript_path = payload.get("transcript_path") or None
         since = read_cursor(sid8)
         return cls(
             sid8=sid8,
             vault=vault,
             today_str=_dt.date.today().isoformat(),
             since=since,
+            transcript_path=transcript_path,
         )

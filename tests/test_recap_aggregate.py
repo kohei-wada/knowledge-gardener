@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import datetime as _dt
+import json as _json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+from recap.aggregate.__main__ import aggregate_session, render_timeline, _durable_change
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -357,3 +360,81 @@ def test_cursor_path_under_sessions_dir(tmp_path, monkeypatch):
     importlib.reload(kg_paths)
     p = kg_paths.cursor_path("abc12345")
     assert p == tmp_path / "knowledge-gardener" / "sessions" / "abc12345.cursor"
+
+
+# --- durable_change ----------------------------------------------------------
+
+
+def test_durable_change_true_on_edit(tmp_path):
+    p = tmp_path / "2026-05-30-aaaaaaaa.log"
+    p.write_text("09:00 tool=Edit target=a.md\n")
+    agg = aggregate_session(p, _dt.date(2026, 5, 30))
+    assert agg["durable_change"] is True
+
+
+def test_durable_change_true_on_git_commit(tmp_path):
+    p = tmp_path / "2026-05-30-aaaaaaaa.log"
+    p.write_text("09:00 tool=Bash target=git commit -m x\n")
+    agg = aggregate_session(p, _dt.date(2026, 5, 30))
+    assert agg["durable_change"] is True
+
+
+def test_durable_change_false_on_reads_only(tmp_path):
+    p = tmp_path / "2026-05-30-aaaaaaaa.log"
+    p.write_text(
+        "09:00 tool=mcp__Notion__notion-fetch target=x\n"
+        "09:01 tool=WebSearch target=y\n"
+    )
+    agg = aggregate_session(p, _dt.date(2026, 5, 30))
+    assert agg["durable_change"] is False
+
+
+# --- render_timeline ---------------------------------------------------------
+
+def test_render_timeline_groups_by_minute_and_collapses_edits(tmp_path):
+    entries = [
+        {"hhmm": "10:22", "tool": "Edit", "target": "auto_recap.py", "status": "ok"},
+        {"hhmm": "10:22", "tool": "Edit", "target": "auto_recap.py", "status": "ok"},
+        {"hhmm": "10:22", "tool": "Write", "target": "relay.yml", "status": "ok"},
+        {"hhmm": "10:47", "tool": "Bash", "target": "git commit -m deploy", "status": "ok"},
+    ]
+    lines = render_timeline(entries)
+    assert lines == [
+        "- 10:22  Edit auto_recap.py ×2, Write relay.yml",
+        "- 10:47  Bash: git commit -m deploy",
+    ]
+
+
+def test_render_timeline_marks_errors():
+    entries = [{"hhmm": "11:00", "tool": "Bash", "target": "pytest", "status": "err"}]
+    assert render_timeline(entries) == ["- 11:00  Bash: pytest [err]"]
+
+
+def test_render_timeline_empty():
+    assert render_timeline([]) == []
+
+
+def test_render_timeline_marks_file_tool_errors():
+    entries = [{"hhmm": "12:00", "tool": "Edit", "target": "a.py", "status": "err"}]
+    assert render_timeline(entries) == ["- 12:00  Edit a.py [err]"]
+
+
+# --- --json mode -------------------------------------------------------------
+
+
+def test_json_mode_emits_durable_and_timeline(tmp_path, monkeypatch):
+    sessions = tmp_path / "knowledge-gardener" / "sessions"
+    sessions.mkdir(parents=True)
+    (sessions / "2026-05-30-aaaaaaaa.log").write_text("10:00 tool=Edit target=a.md\n")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    from recap.aggregate.__main__ import main
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["--date", "2026-05-30", "--sid", "aaaaaaaa", "--json"])
+    assert rc == 0
+    payload = _json.loads(buf.getvalue())
+    s = payload["sessions"][0]
+    assert s["durable_change"] is True
+    assert s["timeline"] == ["- 10:00  Edit a.md"]
+    assert s["first_hhmm"] == "10:00"

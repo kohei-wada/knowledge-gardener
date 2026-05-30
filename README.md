@@ -28,6 +28,7 @@ Set the vault path in your shell:
 
 ```bash
 export KG_VAULT=~/path/to/your/vault
+export KG_BLOG_REPO=~/path/to/your/blog/repo   # only needed for garden-harvest
 ```
 
 Restart your Claude Code session.
@@ -72,6 +73,7 @@ If no README is found in either location, `garden-plant` will refuse to write an
 | `garden-recap` | **(implemented)** Wrap up a session by writing what was worked on to today's daily note, so the next session can pick up context |
 | `garden-connect` | **(implemented)** Link an existing MOC and an existing child note — atomic graph-edge insertion, bi-directional by default |
 | `garden-prune` | **(implemented)** Remove a named note — archive by default (git mv into the vault's archive folder), hard-delete only on explicit request. Surfaces inbound-link warnings; cleanup goes through garden-water |
+| `garden-harvest` | **(implemented)** Turn mature vault knowledge into a published blog post — gather permanent notes, shape in dialogue (no stored draft), mask PII, emit into the blog repo (`KG_BLOG_REPO`) per that repo's conventions; commits, never pushes |
 
 ### Session Capture (Phase 1)
 

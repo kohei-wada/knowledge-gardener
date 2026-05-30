@@ -6,7 +6,7 @@
 
 **Architecture:** A markdown SKILL.md (no Python). It references the shared Pre-flight Setup / Common Workflow Steps in `using-knowledge-gardener`, reads the **vault README** for the gather convention and the **blog repo README** (located via `KG_BLOG_REPO`) for emit/mask conventions, runs a propose-then-confirm dialogue, and commits the post into the blog repo (no push). It is wired into the entry skill's Available Skills table, Skill Routing, and Variables, and documented in README + CLAUDE.md.
 
-**Tech Stack:** Claude Code skill library (markdown SKILL.md + YAML frontmatter); validation via the repo's pre-commit hooks (`SKILL.md frontmatter`, `knowledge-gardener:xxx references point to existing skills`, markdownlint, version-match). No pytest — these skills have no unit tests.
+**Tech Stack:** Claude Code skill library (markdown SKILL.md + YAML frontmatter); validation via the repo's pre-commit hooks (`SKILL.md frontmatter`, `check-skill-refs`, markdownlint, version-match). No pytest — these skills have no unit tests.
 
 **Spec:** [docs/specs/2026-05-30-garden-harvest-design.md](../specs/2026-05-30-garden-harvest-design.md)
 
@@ -112,7 +112,7 @@ This mirrors [Common: Lint, Commit, Push](../using-knowledge-gardener/SKILL.md#c
 - [ ] **Step 2: Verify the frontmatter hook passes**
 
 Run: `pre-commit run --files skills/garden-harvest/SKILL.md`
-Expected: `SKILL.md has required name + description frontmatter` → Passed; markdownlint → Passed. (The `knowledge-gardener:xxx references` hook only checks `knowledge-gardener:<skill>` mentions; this file's relative links are fine.)
+Expected: `SKILL.md has required name + description frontmatter` → Passed; markdownlint → Passed. (The `check-skill-refs` hook only checks `knowledge-gardener:<skill>` mentions; this file's relative links are fine.)
 
 - [ ] **Step 3: Commit**
 
@@ -197,7 +197,7 @@ Add immediately after it:
 - [ ] **Step 5: Verify reference + lint hooks pass**
 
 Run: `pre-commit run --files skills/using-knowledge-gardener/SKILL.md`
-Expected: `knowledge-gardener:xxx references point to existing skills` → Passed (garden-harvest now exists); markdownlint → Passed.
+Expected: `check-skill-refs` → Passed (garden-harvest now exists); markdownlint → Passed.
 
 - [ ] **Step 6: Commit**
 
@@ -297,7 +297,7 @@ to:
 - [ ] **Step 2: Run the full pre-commit suite**
 
 Run: `pre-commit run --all-files`
-Expected: all hooks Passed — in particular `versions match across package.json, plugin.json, marketplace.json`, `SKILL.md has required name + description frontmatter`, and `knowledge-gardener:xxx references point to existing skills`.
+Expected: all hooks Passed — in particular `versions match across package.json, plugin.json, marketplace.json`, `SKILL.md has required name + description frontmatter`, and `check-skill-refs`.
 
 - [ ] **Step 3: Manually verify the skill triggers (feature correctness)**
 

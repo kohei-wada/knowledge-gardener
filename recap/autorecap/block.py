@@ -17,6 +17,16 @@ _KPT_RE = re.compile(r"^### KPT[ \t]*\n.*?(?=\n## |\n<!-- /kg-recap-sid:|\Z)", r
 _TIMELINE_RE = re.compile(r"(^### Timeline[ \t]*\n)(.*?)(?=\n### |\n## |\n<!-- /kg-recap-sid:|\Z)", re.DOTALL | re.MULTILINE)
 
 
+_TIMELINE_TIME_RE = re.compile(r"^-\s+(\d{2}:\d{2})")
+
+
+def _timeline_sort_key(line: str) -> str:
+    """Sort key for a Timeline bullet — its leading `HH:MM` (zero-padded, so
+    lexical order is chronological). Stable sort keeps same-minute order."""
+    m = _TIMELINE_TIME_RE.match(line)
+    return m.group(1) if m else ""
+
+
 def extract_kpt_section(text: str) -> str | None:
     m = _KPT_RE.search(text)
     if not m:
@@ -59,20 +69,24 @@ def upsert_session_block(note_text: str, sid8: str, *, start_hhmm: str, end_hhmm
     cm = _close_re(sid8).search(note_text)
     if om and cm and cm.start() > om.start():
         block = note_text[om.start():cm.end()]
-        # preserve the existing start; refresh end + topic
+        # refresh end + topic; start = earliest of the existing header and the
+        # incoming window (a manual full-session recap can begin earlier than an
+        # auto block that started mid-session; monotonic auto increments are
+        # later, so the existing start is preserved for them).
         hm = _HEADER_RE.search(block)
-        start = hm.group(1) if hm else start_hhmm
+        start = min(hm.group(1), start_hhmm) if hm else start_hhmm
         new_topic = topic or (hm.group(3).strip() if hm else "")
         new_header = _render_header(start, end_hhmm, new_topic)
         block = _HEADER_RE.sub(lambda _m: new_header, block, count=1) if hm else block
-        # append timeline (dedup exact bullet lines)
+        # merge timeline: dedup exact bullet lines, then sort chronologically
+        # (fresh bullets may predate existing ones on a full-session recap).
         tm = _TIMELINE_RE.search(block)
         if tm:
-            existing = tm.group(2).rstrip("\n")
-            have = set(existing.splitlines())
+            existing_lines = tm.group(2).rstrip("\n").splitlines()
+            have = set(existing_lines)
             fresh = [b for b in timeline_bullets if b not in have]
-            body = existing + ("\n" + "\n".join(fresh) if fresh else "")
-            block = block[:tm.start(2)] + body + block[tm.end(2):]
+            merged = sorted(existing_lines + fresh, key=_timeline_sort_key)
+            block = block[:tm.start(2)] + "\n".join(merged) + block[tm.end(2):]
         # replace or insert KPT
         if kpt_section is not None:
             if _KPT_RE.search(block):

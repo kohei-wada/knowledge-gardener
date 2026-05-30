@@ -153,3 +153,43 @@ def test_topic_from_kpt_truncates_to_30_chars():
 
 def test_topic_from_kpt_empty_when_no_keep():
     assert topic_from_kpt("### KPT\n- Problem: only") == ""
+
+
+def test_timeline_append_keeps_chronological_order():
+    # An existing block that began mid-session (e.g. auto-recap started at 14:41)…
+    first = upsert_session_block(
+        "", "abc12345", start_hhmm="14:41", end_hhmm="14:47", topic="t",
+        timeline_bullets=["- 14:41  Edit a.py"], kpt_section=KPT1,
+    )
+    # …then a manual full-session recap adds an EARLIER bullet (12:20).
+    second = upsert_session_block(
+        first, "abc12345", start_hhmm="12:20", end_hhmm="14:47", topic="t",
+        timeline_bullets=["- 12:20  Bash: x", "- 14:41  Edit a.py"], kpt_section=KPT1,
+    )
+    # Timeline must be chronological, not append-order.
+    assert second.index("- 12:20") < second.index("- 14:41")
+
+
+def test_update_adopts_earlier_start_in_header():
+    first = upsert_session_block(
+        "", "abc12345", start_hhmm="14:41", end_hhmm="14:47", topic="t",
+        timeline_bullets=["- 14:41  Edit a.py"], kpt_section=KPT1,
+    )
+    second = upsert_session_block(
+        first, "abc12345", start_hhmm="12:20", end_hhmm="15:33", topic="t",
+        timeline_bullets=["- 12:20  Bash: x"], kpt_section=KPT1,
+    )
+    assert "## Session 12:20〜15:33  t" in second
+
+
+def test_update_keeps_existing_start_when_new_is_later():
+    # Auto incremental: a later slice must NOT push the start forward.
+    first = upsert_session_block(
+        "", "abc12345", start_hhmm="09:00", end_hhmm="09:05", topic="t",
+        timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
+    )
+    second = upsert_session_block(
+        first, "abc12345", start_hhmm="10:00", end_hhmm="10:05", topic="t",
+        timeline_bullets=["- 10:00  Edit b.py"], kpt_section=KPT1,
+    )
+    assert "## Session 09:00〜10:05  t" in second

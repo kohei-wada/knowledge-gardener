@@ -1,4 +1,4 @@
-from recap.autorecap.block import upsert_session_block, extract_kpt_section, topic_from_kpt
+from recap.autorecap.block import upsert_session_block, extract_kpt_section, topic_from_kpt, extract_timeline_bullets
 
 KPT1 = "### KPT\n- Keep: a\n- Problem: b\n- Try: c"
 KPT2 = "### KPT\n- Keep: updated\n- Problem: b2\n- Try: c2"
@@ -17,49 +17,44 @@ def test_create_block_when_absent():
     assert "<!-- /kg-recap-sid:abc12345 -->" in out
 
 
-def test_append_timeline_preserves_prior_and_replaces_kpt():
+def test_timeline_is_replaced_not_appended():
     first = upsert_session_block(
-        "", "abc12345", start_hhmm="09:00", end_hhmm="09:05", topic="t1",
-        timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
+        "", "abc12345", start_hhmm="09:00", end_hhmm="09:05",
+        topic="t1", timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
     )
     second = upsert_session_block(
-        first, "abc12345", start_hhmm="09:00", end_hhmm="10:30", topic="t2",
-        timeline_bullets=["- 10:30  Edit b.py"], kpt_section=KPT2,
+        first, "abc12345", start_hhmm="09:00", end_hhmm="09:10",
+        topic="t2", timeline_bullets=["- 09:06  Edit b.py"], kpt_section=KPT2,
     )
-    assert "- 09:00  Edit a.py" in second
-    assert "- 10:30  Edit b.py" in second
-    assert second.index("- 09:00") < second.index("- 10:30")
-    assert "Keep: updated" in second
-    assert "Keep: a" not in second
-    assert second.count("### KPT") == 1
-    assert "## Session 09:00〜10:30  t2" in second
-    assert second.count("<!-- kg-recap-sid:abc12345 -->") == 1
+    assert "- 09:00  Edit a.py" not in second   # old timeline gone
+    assert "- 09:06  Edit b.py" in second        # replaced with new
+    assert "### KPT\n- Keep: updated" in second  # KPT still replaced
 
 
-def test_timeline_append_is_idempotent_for_same_bullets():
+def test_replace_is_idempotent_for_same_bullets():
     first = upsert_session_block(
-        "", "abc12345", start_hhmm="09:00", end_hhmm="09:05", topic="t",
-        timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
+        "", "abc12345", start_hhmm="09:00", end_hhmm="09:05",
+        topic="t", timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
     )
     again = upsert_session_block(
-        first, "abc12345", start_hhmm="09:00", end_hhmm="09:05", topic="t",
-        timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
+        first, "abc12345", start_hhmm="09:00", end_hhmm="09:05",
+        topic="t", timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
     )
-    assert again.count("- 09:00  Edit a.py") == 1
+    assert again == first
 
 
-def test_timeline_only_append_leaves_kpt_untouched():
+def test_timeline_replace_leaves_kpt_untouched_when_kpt_none():
     first = upsert_session_block(
-        "", "abc12345", start_hhmm="09:00", end_hhmm="09:05", topic="t1",
-        timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
+        "", "abc12345", start_hhmm="09:00", end_hhmm="09:05",
+        topic="t", timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
     )
     second = upsert_session_block(
-        first, "abc12345", start_hhmm="09:00", end_hhmm="09:10", topic="t1",
-        timeline_bullets=["- 09:10  Bash: ls"], kpt_section=None,
+        first, "abc12345", start_hhmm="09:00", end_hhmm="09:10",
+        topic="t", timeline_bullets=["- 09:06  Edit b.py"], kpt_section=None,
     )
-    assert "Keep: a" in second
-    assert "- 09:10  Bash: ls" in second
-    assert "## Session 09:00〜09:10  t1" in second
+    assert "- 09:06  Edit b.py" in second
+    assert "- 09:00  Edit a.py" not in second
+    assert "### KPT\n- Keep: a" in second  # KPT preserved when incoming kpt is None
 
 
 def test_create_block_without_kpt():
@@ -115,15 +110,15 @@ def test_update_topicless_block_keeps_timeline_heading():
     )
     assert "## Session 09:00〜09:30" in first
     assert "### Timeline" in first
-    # Second write: substantive update adds a topic + KPT.
+    # Second write: substantive update replaces timeline + adds topic + KPT.
     second = upsert_session_block(
         first, "abc12345", start_hhmm="09:00", end_hhmm="10:00", topic="recap work",
         timeline_bullets=["- 10:00  Edit a.py"], kpt_section=KPT1,
     )
     assert "### Timeline" in second              # heading MUST survive
-    assert "- 09:00  MCP Notion×1" in second     # prior bullet preserved
-    assert "- 10:00  Edit a.py" in second        # new bullet appended
-    assert second.index("### Timeline") < second.index("- 09:00  MCP Notion×1")  # bullets under heading
+    assert "- 09:00  MCP Notion×1" not in second  # old bullet replaced
+    assert "- 10:00  Edit a.py" in second          # new bullets in place
+    assert second.index("### Timeline") < second.index("- 10:00  Edit a.py")  # bullets under heading
     assert "## Session 09:00〜10:00  recap work" in second
     assert "### KPT" in second
 
@@ -155,19 +150,20 @@ def test_topic_from_kpt_empty_when_no_keep():
     assert topic_from_kpt("### KPT\n- Problem: only") == ""
 
 
-def test_timeline_append_keeps_chronological_order():
-    # An existing block that began mid-session (e.g. auto-recap started at 14:41)…
+def test_timeline_replace_preserves_caller_order():
+    # Caller is responsible for supplying bullets in order; replace writes them as-is.
     first = upsert_session_block(
         "", "abc12345", start_hhmm="14:41", end_hhmm="14:47", topic="t",
         timeline_bullets=["- 14:41  Edit a.py"], kpt_section=KPT1,
     )
-    # …then a manual full-session recap adds an EARLIER bullet (12:20).
     second = upsert_session_block(
         first, "abc12345", start_hhmm="12:20", end_hhmm="14:47", topic="t",
         timeline_bullets=["- 12:20  Bash: x", "- 14:41  Edit a.py"], kpt_section=KPT1,
     )
-    # Timeline must be chronological, not append-order.
+    # Caller supplied them chronologically; output must reflect that order.
     assert second.index("- 12:20") < second.index("- 14:41")
+    # Old timeline is replaced by the incoming list.
+    assert second.count("- 14:41  Edit a.py") == 1
 
 
 def test_update_adopts_earlier_start_in_header():
@@ -195,9 +191,38 @@ def test_update_keeps_existing_start_when_new_is_later():
     assert "## Session 09:00〜10:05  t" in second
 
 
-def test_timeline_malformed_bullet_sorts_last():
-    # A hand-edited Timeline line without a HH:MM timestamp must not jump ahead
-    # of real chronological entries — it sorts to the end.
+def test_extract_timeline_bullets_from_llm_output():
+    out = (
+        "### Timeline\n"
+        "- 09:00–09:10 設計メモを作成\n"
+        "- 09:10–09:30 実装\n"
+        "\n"
+        "### KPT\n"
+        "- Keep: x\n"
+    )
+    assert extract_timeline_bullets(out) == [
+        "- 09:00–09:10 設計メモを作成",
+        "- 09:10–09:30 実装",
+    ]
+
+
+def test_extract_timeline_bullets_absent_returns_none():
+    assert extract_timeline_bullets("### KPT\n- Keep: x\n") is None
+
+
+def test_extract_timeline_bullets_empty_section_with_blank_line():
+    assert extract_timeline_bullets("### Timeline\n\n### KPT\n- Keep: x") == []
+
+
+def test_extract_timeline_bullets_empty_section_no_blank_line():
+    # malformed LLM output: empty Timeline directly followed by KPT, no blank line.
+    # Must NOT leak KPT lines into the timeline.
+    assert extract_timeline_bullets("### Timeline\n### KPT\n- Keep: x") == []
+
+
+def test_timeline_replace_discards_old_bullets():
+    # Under replace semantics, old bullets (including hand-edited ones) are gone
+    # after a new upsert — only the incoming timeline_bullets survive.
     block = (
         "<!-- kg-recap-sid:abc12345 -->\n## Session 09:00〜09:05  t\n\n"
         "### Timeline\n- 09:05  Edit b.py\n- garbage no timestamp\n\n"
@@ -207,5 +232,6 @@ def test_timeline_malformed_bullet_sorts_last():
         block, "abc12345", start_hhmm="09:00", end_hhmm="09:10", topic="t",
         timeline_bullets=["- 09:00  Edit a.py"], kpt_section=KPT1,
     )
-    assert out.index("- 09:00  Edit a.py") < out.index("- garbage no timestamp")
-    assert out.index("- 09:05  Edit b.py") < out.index("- garbage no timestamp")
+    assert "- 09:00  Edit a.py" in out
+    assert "- 09:05  Edit b.py" not in out
+    assert "- garbage no timestamp" not in out

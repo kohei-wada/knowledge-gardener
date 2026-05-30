@@ -31,3 +31,19 @@ def test_aggregation_carries_signals(tmp_path, monkeypatch):
 def test_aggregation_none_when_empty(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
     assert SessionAggregator(_ctx("nolog123")).aggregate() is None
+
+
+def test_aggregate_requests_whole_session_ignoring_cursor(monkeypatch):
+    import recap.autorecap.session_aggregator as sa
+    captured = {}
+
+    def fake(sid8, since):
+        captured["since"] = since
+        return {"first_hhmm": "09:00", "last_hhmm": "09:30", "entry_count": 3,
+                "duration_min": 30, "durable_change": True, "timeline": ["- 09:00  Edit a.py"]}
+
+    monkeypatch.setattr(sa, "_run_aggregator_json", fake)
+    ctx = _ctx("abcd1234", since="09:20")
+    agg = sa.SessionAggregator(ctx).aggregate()
+    assert captured["since"] is None
+    assert agg.timeline == ["- 09:00  Edit a.py"]

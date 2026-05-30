@@ -160,15 +160,16 @@ def assert_continue(stdout: str) -> None:
 
 
 KPT_BODY = "### KPT\n\n- Keep: テストが書ける\n- Problem: (なし)\n- Try: 次回も green\n"
+TIMELINE_BODY = "### Timeline\n\n- 11:00–11:05 a/b.py を編集\n"
 
 
 def _canned_kpt_with_discovery(folder=DAILY_FOLDER_REL, filename=None,
                                filename_pattern="{date}.md", insert_before=""):
-    """Build a canned Claude output: kg-discovery block + ### KPT section.
+    """Build a canned Claude output: kg-discovery block + ### Timeline + ### KPT section.
 
     The new (cold-cache) contract: Claude returns discovery metadata followed
-    by ONLY a `### KPT` section. It no longer emits kg-recap-sid markers or a
-    `## Session` heading — Python assembles the block around the KPT.
+    by a `### Timeline` activity log and a `### KPT` section. Python assembles
+    the block markers and header around them.
     """
     if filename is None:
         filename = f"{_dt.date.today().isoformat()}.md"
@@ -176,13 +177,13 @@ def _canned_kpt_with_discovery(folder=DAILY_FOLDER_REL, filename=None,
         "<!-- kg-discovery -->\n"
         f"folder: {folder}\nfilename: {filename}\n"
         f"filename_pattern: {filename_pattern}\ninsert_before: {insert_before}\n"
-        "<!-- /kg-discovery -->\n" + KPT_BODY
+        "<!-- /kg-discovery -->\n" + TIMELINE_BODY + KPT_BODY
     )
 
 
 def _canned_kpt_only():
     """Canned output with NO kg-discovery block — the warm-cache compose path."""
-    return KPT_BODY
+    return TIMELINE_BODY + KPT_BODY
 
 
 CANNED_RECAP = _canned_kpt_with_discovery()
@@ -368,7 +369,7 @@ def test_writes_session_block_on_happy_path(tmp_path):
     content = (daily / f"{_dt.date.today().isoformat()}.md").read_text()
     assert "<!-- kg-recap-sid:testabcd -->" in content
     assert "### Timeline" in content
-    assert "- 09:00" in content
+    assert "11:00–11:05 a/b.py を編集" in content   # AI timeline upgraded from canned output
     assert "Keep: テストが書ける" in content
     assert "<!-- /kg-recap-sid:testabcd -->" in content
 
@@ -437,14 +438,56 @@ def test_claude_output_without_kpt_writes_timeline_only(tmp_path):
     assert "### KPT" not in content
 
 
+def test_llm_success_uses_ai_timeline(tmp_path):
+    """When the LLM returns a ### Timeline section, its bullets replace the
+    deterministic timeline in the written block."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    today = _dt.date.today().isoformat()
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+    # Canned output includes TIMELINE_BODY → AI timeline should be used.
+    fake = make_fake_claude(tmp_path, TIMELINE_BODY + KPT_BODY)
+    env = happy_env(vault, fake)
+    env["KG_DAILY_FILENAME"] = f"{today}.md"
+    res = run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    assert res.returncode == 0
+    assert_continue(res.stdout)
+    content = (daily / f"{today}.md").read_text()
+    assert "11:00–11:05 a/b.py を編集" in content   # AI timeline used
+    assert "### KPT" in content
+
+
+def test_llm_failure_writes_deterministic_timeline(tmp_path):
+    """When the LLM fails but the daily path is pre-resolved, the deterministic
+    Timeline is still written (no KPT on failure)."""
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    today = _dt.date.today().isoformat()
+    write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
+    fake = make_fake_claude(tmp_path, "", exit_code=2)
+    env = happy_env(vault, fake)
+    # Pre-resolve the daily path so the LLM failure does not block the write.
+    env["KG_DAILY_FILENAME"] = f"{today}.md"
+    res = run_hook({"session_id": "testabcd-uuid"}, env_extra=env, state_home=state)
+    assert res.returncode == 0
+    assert_continue(res.stdout)
+    note = daily / f"{today}.md"
+    assert note.exists()
+    content = note.read_text()
+    assert "### Timeline" in content      # deterministic timeline still written
+    assert "a.md" in content             # deterministic timeline carries real bullets, not just a heading
+    assert "### KPT" not in content       # no KPT on LLM failure
+
+
 def test_no_op_when_claude_nonzero_exit(tmp_path):
+    """LLM failure with NO pre-resolved path (cold-cache, no KG_DAILY_FILENAME) → no-op."""
     vault, daily, _ = make_vault(tmp_path)
     state = tmp_path / "state"
     write_session_log(state, "testabcd", ["09:00 tool=Edit target=a.md"])
     fake = make_fake_claude(tmp_path, "", exit_code=2)
     res = run_hook(
         {"session_id": "testabcd-uuid"},
-        env_extra=happy_env(vault, fake),
+        env_extra=happy_env(vault, fake),  # happy_env has KG_DAILY_FOLDER but not KG_DAILY_FILENAME
         state_home=state,
     )
     assert res.returncode == 0
@@ -586,8 +629,13 @@ def test_two_stops_coalesce_into_one_block(tmp_path):
     run_hook({"session_id": sid8 + "-uuid"}, env_extra=happy_env(vault, fake2), state_home=state)
 
     text = (daily / f"{today.isoformat()}.md").read_text()
+    # One block (replace semantics): open + close markers appear exactly once each.
     assert text.count(f"<!-- kg-recap-sid:{sid8} -->") == 1
-    assert "- 09:00  Edit a.md" in text and "- 10:30  Edit b.md" in text
+    assert text.count(f"<!-- /kg-recap-sid:{sid8} -->") == 1
+    # Second stop's canned output has TIMELINE_BODY → AI timeline replaces deterministic;
+    # the block carries the latest whole-session Timeline from the LLM output.
+    assert "11:00–11:05 a/b.py を編集" in text
+    assert "### KPT" in text
     assert (sessions / f"{sid8}.cursor").read_text().strip() == "10:30"
 
 
@@ -615,9 +663,10 @@ def test_topicless_then_substantive_keeps_timeline(tmp_path):
     run_hook({"session_id": sid8 + "-uuid"},
              env_extra={**happy_env(vault, fake2), **env_common}, state_home=state)
     text = note.read_text()
-    assert "### Timeline" in text                 # heading survived the update
-    assert "- 09:00" in text                      # first Stop's bullet preserved
-    assert "- 10:00  Edit a.md" in text           # second Stop's bullet appended
+    assert "### Timeline" in text                         # heading survived the update
+    # Second stop's canned output has TIMELINE_BODY → AI timeline replaces deterministic.
+    assert "11:00–11:05 a/b.py を編集" in text
+    assert "### KPT" in text                              # KPT section added by substantive stop
     assert text.count(f"<!-- kg-recap-sid:{sid8} -->") == 1
 
 
@@ -666,8 +715,8 @@ def test_rerun_same_window_is_idempotent(tmp_path):
     text = daily_path.read_text()
     # Bare marker appears exactly twice (one open + one close), not four.
     assert text.count(f"kg-recap-sid:{sid8}") == 2
-    # The single Timeline bullet appears once.
-    assert text.count("- 11:00  Edit c.md") == 1
+    # AI timeline from canned output appears exactly once (idempotent replace).
+    assert text.count("11:00–11:05 a/b.py を編集") == 1
 
 
 # --- discovery cache --------------------------------------------------------

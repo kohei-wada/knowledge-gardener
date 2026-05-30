@@ -16,7 +16,7 @@ import pathlib
 import sys
 
 from ..aggregate.__main__ import aggregate_session, list_logs_for_date, select_logs
-from ..autorecap.block import topic_from_kpt, upsert_session_block
+from ..autorecap.block import extract_timeline_bullets, topic_from_kpt, upsert_session_block
 from ..autorecap.daily_note import DailyNote
 from ..shared.cursor import write_cursor
 
@@ -28,6 +28,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--sid", required=True, help="Session sid8 to recap.")
     p.add_argument("--daily-path", required=True, help="Absolute path to today's daily note (resolved by the skill).")
     p.add_argument("--kpt-file", required=True, help="File containing the ### KPT section to write.")
+    p.add_argument("--timeline-file", default="", help="File with the assistant-authored ### Timeline section. Omitted -> deterministic filtered timeline.")
     p.add_argument("--insert-before", default="", help="Heading to insert a NEW block before (default: append at EOF).")
     p.add_argument("--dry-run", action="store_true", help="Print the daily-note diff and exit without writing.")
     p.add_argument("--no-commit", action="store_true", help="Write the file but skip git commit/push.")
@@ -62,6 +63,15 @@ def main(argv: list[str] | None = None) -> int:
 
     start, end = agg["first_hhmm"], agg["last_hhmm"]
     timeline = agg["timeline"]
+    if args.timeline_file:
+        try:
+            authored = pathlib.Path(args.timeline_file).read_text(encoding="utf-8")
+        except OSError as e:
+            sys.stderr.write(f"cannot read --timeline-file: {e}\n")
+            return 2
+        bullets = extract_timeline_bullets(authored)
+        if bullets:
+            timeline = bullets
     topic = topic_from_kpt(kpt)
     daily_path = pathlib.Path(args.daily_path)
     existing = daily_path.read_text(encoding="utf-8") if daily_path.is_file() else ""

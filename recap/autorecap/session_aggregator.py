@@ -54,7 +54,7 @@ class SessionAggregator:
         self._ctx = ctx
 
     def aggregate(self) -> Aggregation | None:
-        s = _run_aggregator_json(self._ctx.sid8, since=self._ctx.since)
+        s = _run_aggregator_json(self._ctx.sid8, since=None)  # whole-session: Timeline is regenerated & replaced each Stop
         if not s:
             return None
         start = s.get("first_hhmm")

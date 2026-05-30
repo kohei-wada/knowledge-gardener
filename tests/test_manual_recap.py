@@ -142,3 +142,27 @@ def test_commits_when_repo_and_not_no_commit(tmp_path, monkeypatch):
     subj = subprocess.run(["git", "log", "-1", "--pretty=%s"], cwd=vault,
                           capture_output=True, text=True, check=True).stdout.strip()
     assert subj.startswith("water:") and "手動でまとめた" in subj
+
+
+def test_authored_timeline_file_overrides_mechanical(tmp_path, monkeypatch):
+    vault, daily, state = _setup(tmp_path, monkeypatch)
+    _write_log(state, "manual01", ["09:00 tool=Edit target=a.md", "09:05 tool=Bash target=git commit -m x"])
+    timeline_file = tmp_path / "timeline.md"
+    timeline_file.write_text("### Timeline\n- 09:00–09:10 設計\n", encoding="utf-8")
+    rc = main(["--sid", "manual01", "--daily-path", str(daily),
+               "--kpt-file", str(_kpt_file(tmp_path)),
+               "--timeline-file", str(timeline_file), "--no-commit"])
+    assert rc == 0
+    content = daily.read_text(encoding="utf-8")
+    assert "- 09:00–09:10 設計" in content
+    assert "Bash: git commit" not in content   # deterministic bullet replaced by authored timeline
+
+
+def test_no_timeline_file_falls_back_to_deterministic(tmp_path, monkeypatch):
+    vault, daily, state = _setup(tmp_path, monkeypatch)
+    _write_log(state, "manual01", ["09:00 tool=Edit target=a.md"])
+    rc = main(["--sid", "manual01", "--daily-path", str(daily),
+               "--kpt-file", str(_kpt_file(tmp_path)), "--no-commit"])
+    assert rc == 0
+    content = daily.read_text(encoding="utf-8")
+    assert "### Timeline" in content

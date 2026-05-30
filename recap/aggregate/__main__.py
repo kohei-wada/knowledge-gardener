@@ -17,6 +17,8 @@ import sys
 from collections import Counter, OrderedDict
 from typing import Iterable
 
+_COMMIT_PUSH_RE = re.compile(r"\bgit\s+(commit|push)\b")
+
 from ..shared.paths import sessions_dir
 
 LINE_RE = re.compile(
@@ -28,6 +30,54 @@ LINE_RE = re.compile(
 
 FILE_TOOLS = frozenset({"Edit", "Write", "NotebookEdit"})
 MAX_BASH_HIGHLIGHTS = 10
+
+
+def _durable_change(entries: list[dict]) -> bool:
+    for e in entries:
+        tool = e["tool"]
+        if tool in FILE_TOOLS or tool == "Agent":
+            return True
+        if tool == "Bash" and _COMMIT_PUSH_RE.search(e["target"] or ""):
+            return True
+    return False
+
+
+def _summarize_minute(entries: list[dict]) -> str:
+    file_counts: OrderedDict[tuple[str, str], int] = OrderedDict()
+    rest: list[str] = []
+    mcp: Counter[str] = Counter()
+    for e in entries:
+        tool, target = e["tool"], (e["target"] or "?")
+        err = " [err]" if e["status"] == "err" else ""
+        if tool in FILE_TOOLS:
+            key = (tool, target)
+            file_counts[key] = file_counts.get(key, 0) + 1
+        elif tool == "Bash":
+            rest.append(f"Bash: {target}{err}")
+        elif tool == "Agent":
+            sub = target.split(":", 1)[0] if ":" in target else target
+            rest.append(f"Agent→{sub}{err}")
+        elif tool in {"WebFetch", "WebSearch"}:
+            rest.append(f"{tool}: {target}{err}")
+        elif tool.startswith("mcp__"):
+            parts = tool.split("__", 2)
+            mcp[parts[1] if len(parts) >= 2 else "mcp"] += 1
+        else:
+            rest.append(f"{tool}{err}")
+    chunks = [
+        f"{tool} {path}" + (f" ×{n}" if n > 1 else "")
+        for (tool, path), n in file_counts.items()
+    ]
+    chunks.extend(rest)
+    chunks.extend(f"MCP {server}×{n}" for server, n in sorted(mcp.items()))
+    return ", ".join(chunks)
+
+
+def render_timeline(entries: list[dict]) -> list[str]:
+    by_min: OrderedDict[str, list[dict]] = OrderedDict()
+    for e in entries:
+        by_min.setdefault(e["hhmm"], []).append(e)
+    return [f"- {hhmm}  {_summarize_minute(es)}" for hhmm, es in by_min.items()]
 
 
 def list_logs_for_date(date: _dt.date) -> list[pathlib.Path]:
@@ -117,6 +167,7 @@ def aggregate_session(path: pathlib.Path, date: _dt.date, since: str | None = No
         else:
             other += 1
 
+    durable = _durable_change(entries)
     return {
         "sid8": sid8,
         "mtime": path.stat().st_mtime if path.exists() else 0,
@@ -132,6 +183,8 @@ def aggregate_session(path: pathlib.Path, date: _dt.date, since: str | None = No
         "mcp_servers": dict(mcp_servers),
         "errors": errors,
         "other_count": other,
+        "durable_change": durable,
+        "timeline": render_timeline(entries),
     }
 
 
@@ -221,6 +274,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--since",
         help="Drop log entries with hhmm <= this value (strict greater-than). Format HH:MM.",
     )
+    p.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of the human render.")
     return p.parse_args(argv)
 
 
@@ -244,6 +298,10 @@ def main(argv: list[str] | None = None) -> int:
     logs = list_logs_for_date(date)
     selected = select_logs(logs, date, args.sid, args.all)
     aggregates = [aggregate_session(p, date, since=since) for p in selected]
+    if args.json:
+        import json as _json
+        sys.stdout.write(_json.dumps({"date": date.isoformat(), "sessions": aggregates}, ensure_ascii=False))
+        return 0
     sys.stdout.write(render(date, aggregates))
     return 0
 

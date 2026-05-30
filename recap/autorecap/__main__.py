@@ -121,8 +121,7 @@ class AutoRecap:
         else:
             daily_path, insert_before = None, ""  # resolved from discovery after the LLM call
 
-        det_bullets = agg.timeline          # whole-session, deterministic, filtered
-        timeline_bullets = det_bullets
+        timeline_bullets = agg.timeline     # whole-session deterministic timeline; LLM may upgrade it below
         kpt_section: str | None = None
         topic = ""
 

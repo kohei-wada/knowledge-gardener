@@ -475,6 +475,7 @@ def test_llm_failure_writes_deterministic_timeline(tmp_path):
     assert note.exists()
     content = note.read_text()
     assert "### Timeline" in content      # deterministic timeline still written
+    assert "a.md" in content             # deterministic timeline carries real bullets, not just a heading
     assert "### KPT" not in content       # no KPT on LLM failure
 
 

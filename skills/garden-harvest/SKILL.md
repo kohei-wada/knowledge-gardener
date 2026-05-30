@@ -45,25 +45,33 @@ If the vault README declares no gather convention for blog material, **stop and 
 3. From it, extract whatever the emit step needs: post format, frontmatter schema, the **worth-publishing test**, the **PII-masking rules**, and any structural requirement (e.g. locale parity). The skill does not know these a priori.
 4. If the blog README declares no pointer to write/mask conventions, **stop and ask** — do not invent them.
 
-### Step 3: Gather
+### Step 3: Establish the topic
+
+Before gathering anything, make sure there is a concrete topic. If the user named one, use it. If the skill was invoked cold with no topic, **ask what to publish** — or offer `garden-survey` to surface publish-worthy clusters of permanent notes and pick from those. Do not guess a topic and start gathering.
+
+### Step 4: Gather
 
 Following the vault's gather convention, assemble the relevant permanent notes (and the notes they link to) for the topic as raw material. Read the **real-valued** notes directly — they are visible to you during the dialogue. Write nothing to the vault.
 
-### Step 4: Dialogue
+### Step 5: Dialogue
 
 Shape the post with the user — angle, structure, what first-hand experience it carries. The draft *is* this conversation; create no draft file anywhere.
 
 Apply the blog's **worth-publishing test** as a gate: if the candidate carries no experiment / failure / judgment / first-hand layer, say so and stop without publishing. There is no "rejected" artifact to file — the outcome is simply not to emit.
 
-### Step 5: Emit + mask
+Treat the vault notes as **raw material, not verified truth** — a claim being written down does not make it correct or settled. During the dialogue, surface claims the user should vet, and cut anything the user is not confident is correct or does not want to assert publicly. The post states only what the author stands behind. (This is distinct from the worth-publishing test: that asks "is it first-hand?", this asks "is it true / does the author endorse it?")
+
+### Step 6: Emit + mask
 
 Produce the post per the blog repo's resolved conventions, satisfying every structural requirement they declare (e.g. locale parity) and applying their **PII-masking rules** to the emitted copy — the source notes keep the real values; only the public copy is masked.
 
+**When the conventions require multiple locales (parity), draft and iterate in ONE primary locale first**, then translate to the others once the content is signed off. Pick the primary locale to fit the user — infer it from the conversation or ask; **do not force a fixed language**. Getting content approval in one locale before translating avoids re-translating after every revision.
+
 Follow [Common: Propose, Don't Commit](../using-knowledge-gardener/SKILL.md#common-propose-dont-commit): show the target path(s) under `$KG_BLOG_REPO`, the full draft of each file, a one-line rationale, and an explicit **masking confirmation** (what real values were redacted to what). Apply only after the user confirms.
 
-### Step 6: Commit (not push)
+### Step 7: Commit (not push)
 
-In the blog repo, run the repo's documented verify/lint steps, then **commit** the post file(s). **Stop at commit — do not push.** Push triggers deployment and stays a manual user action; say so.
+In the blog repo, run the repo's documented verify/lint steps, then **commit** the post file(s) (all locales). **Stop at commit — do not push.** Push triggers deployment and stays a manual user action; say so.
 
 This mirrors [Common: Lint, Commit, Push](../using-knowledge-gardener/SKILL.md#common-lint-commit-push) except the target is the **blog repo** (not the vault) and the sequence ends before push. Use a commit subject in the blog repo's own convention (the conventions doc declares it).
 

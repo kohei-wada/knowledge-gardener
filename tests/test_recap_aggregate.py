@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import datetime as _dt
+import json as _json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+from recap.aggregate.__main__ import aggregate_session, render_timeline, _durable_change
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -361,22 +364,18 @@ def test_cursor_path_under_sessions_dir(tmp_path, monkeypatch):
 
 # --- durable_change ----------------------------------------------------------
 
-from recap.aggregate.__main__ import aggregate_session, render_timeline, _durable_change
-
 
 def test_durable_change_true_on_edit(tmp_path):
     p = tmp_path / "2026-05-30-aaaaaaaa.log"
     p.write_text("09:00 tool=Edit target=a.md\n")
-    import datetime as dt
-    agg = aggregate_session(p, dt.date(2026, 5, 30))
+    agg = aggregate_session(p, _dt.date(2026, 5, 30))
     assert agg["durable_change"] is True
 
 
 def test_durable_change_true_on_git_commit(tmp_path):
     p = tmp_path / "2026-05-30-aaaaaaaa.log"
     p.write_text("09:00 tool=Bash target=git commit -m x\n")
-    import datetime as dt
-    agg = aggregate_session(p, dt.date(2026, 5, 30))
+    agg = aggregate_session(p, _dt.date(2026, 5, 30))
     assert agg["durable_change"] is True
 
 
@@ -386,8 +385,7 @@ def test_durable_change_false_on_reads_only(tmp_path):
         "09:00 tool=mcp__Notion__notion-fetch target=x\n"
         "09:01 tool=WebSearch target=y\n"
     )
-    import datetime as dt
-    agg = aggregate_session(p, dt.date(2026, 5, 30))
+    agg = aggregate_session(p, _dt.date(2026, 5, 30))
     assert agg["durable_change"] is False
 
 
@@ -407,7 +405,7 @@ def test_render_timeline_groups_by_minute_and_collapses_edits(tmp_path):
     ]
 
 
-def test_render_timeline_marks_errors(tmp_path):
+def test_render_timeline_marks_errors():
     entries = [{"hhmm": "11:00", "tool": "Bash", "target": "pytest", "status": "err"}]
     assert render_timeline(entries) == ["- 11:00  Bash: pytest [err]"]
 
@@ -416,9 +414,12 @@ def test_render_timeline_empty():
     assert render_timeline([]) == []
 
 
-# --- --json mode -------------------------------------------------------------
+def test_render_timeline_marks_file_tool_errors():
+    entries = [{"hhmm": "12:00", "tool": "Edit", "target": "a.py", "status": "err"}]
+    assert render_timeline(entries) == ["- 12:00  Edit a.py [err]"]
 
-import json as _json
+
+# --- --json mode -------------------------------------------------------------
 
 
 def test_json_mode_emits_durable_and_timeline(tmp_path, monkeypatch):

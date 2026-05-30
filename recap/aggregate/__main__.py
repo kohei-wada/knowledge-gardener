@@ -17,8 +17,6 @@ import sys
 from collections import Counter, OrderedDict
 from typing import Iterable
 
-_COMMIT_PUSH_RE = re.compile(r"\bgit\s+(commit|push)\b")
-
 from ..shared.paths import sessions_dir
 
 LINE_RE = re.compile(
@@ -30,12 +28,13 @@ LINE_RE = re.compile(
 
 FILE_TOOLS = frozenset({"Edit", "Write", "NotebookEdit"})
 MAX_BASH_HIGHLIGHTS = 10
+_COMMIT_PUSH_RE = re.compile(r"\bgit\s+(commit|push)\b")
 
 
 def _durable_change(entries: list[dict]) -> bool:
     for e in entries:
         tool = e["tool"]
-        if tool in FILE_TOOLS or tool == "Agent":
+        if tool in FILE_TOOLS or tool == "Agent":  # any Agent dispatch may have caused a change; can't inspect inside
             return True
         if tool == "Bash" and _COMMIT_PUSH_RE.search(e["target"] or ""):
             return True
@@ -44,6 +43,7 @@ def _durable_change(entries: list[dict]) -> bool:
 
 def _summarize_minute(entries: list[dict]) -> str:
     file_counts: OrderedDict[tuple[str, str], int] = OrderedDict()
+    file_err: dict[tuple[str, str], bool] = {}
     rest: list[str] = []
     mcp: Counter[str] = Counter()
     for e in entries:
@@ -52,6 +52,8 @@ def _summarize_minute(entries: list[dict]) -> str:
         if tool in FILE_TOOLS:
             key = (tool, target)
             file_counts[key] = file_counts.get(key, 0) + 1
+            if e["status"] == "err":
+                file_err[key] = True
         elif tool == "Bash":
             rest.append(f"Bash: {target}{err}")
         elif tool == "Agent":
@@ -65,7 +67,7 @@ def _summarize_minute(entries: list[dict]) -> str:
         else:
             rest.append(f"{tool}{err}")
     chunks = [
-        f"{tool} {path}" + (f" ×{n}" if n > 1 else "")
+        f"{tool} {path}" + (f" ×{n}" if n > 1 else "") + (" [err]" if file_err.get((tool, path)) else "")
         for (tool, path), n in file_counts.items()
     ]
     chunks.extend(rest)
@@ -300,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
     aggregates = [aggregate_session(p, date, since=since) for p in selected]
     if args.json:
         import json as _json
-        sys.stdout.write(_json.dumps({"date": date.isoformat(), "sessions": aggregates}, ensure_ascii=False))
+        sys.stdout.write(_json.dumps({"date": date.isoformat(), "sessions": aggregates}, ensure_ascii=False) + "\n")
         return 0
     sys.stdout.write(render(date, aggregates))
     return 0

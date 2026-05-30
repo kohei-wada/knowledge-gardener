@@ -27,6 +27,8 @@ LINE_RE = re.compile(
 )
 
 FILE_TOOLS = frozenset({"Edit", "Write", "NotebookEdit"})
+WEB_TOOLS = frozenset({"WebFetch", "WebSearch"})
+NOISE_TOOLS = frozenset({"StructuredOutput"})
 MAX_BASH_HIGHLIGHTS = 10
 _COMMIT_PUSH_RE = re.compile(r"\bgit\s+(commit|push)\b")
 
@@ -44,11 +46,15 @@ def _durable_change(entries: list[dict]) -> bool:
 def _summarize_minute(entries: list[dict]) -> str:
     file_counts: OrderedDict[tuple[str, str], int] = OrderedDict()
     file_err: dict[tuple[str, str], bool] = {}
-    rest: list[str] = []
+    rest: list[str] = []           # Bash / Agent — itemized, in encounter order
+    web = 0                        # WebFetch + WebSearch — collapsed
     mcp: Counter[str] = Counter()
+    misc: Counter[str] = Counter()  # read-only nav + unknown tools — collapsed by name
     for e in entries:
         tool, target = e["tool"], (e["target"] or "?")
         err = " [err]" if e["status"] == "err" else ""
+        if tool in NOISE_TOOLS:
+            continue
         if tool in FILE_TOOLS:
             key = (tool, target)
             file_counts[key] = file_counts.get(key, 0) + 1
@@ -59,18 +65,21 @@ def _summarize_minute(entries: list[dict]) -> str:
         elif tool == "Agent":
             sub = target.split(":", 1)[0] if ":" in target else target
             rest.append(f"Agent→{sub}{err}")
-        elif tool in {"WebFetch", "WebSearch"}:
-            rest.append(f"{tool}: {target}{err}")
+        elif tool in WEB_TOOLS:
+            web += 1
         elif tool.startswith("mcp__"):
             parts = tool.split("__", 2)
             mcp[parts[1] if len(parts) >= 2 else "mcp"] += 1
         else:
-            rest.append(f"{tool}{err}")
+            misc[tool] += 1
     chunks = [
         f"{tool} {path}" + (f" ×{n}" if n > 1 else "") + (" [err]" if file_err.get((tool, path)) else "")
         for (tool, path), n in file_counts.items()
     ]
     chunks.extend(rest)
+    if web:
+        chunks.append(f"Web×{web}")
+    chunks.extend(f"{tool}×{n}" for tool, n in sorted(misc.items()))
     chunks.extend(f"MCP {server}×{n}" for server, n in sorted(mcp.items()))
     return ", ".join(chunks)
 
@@ -79,7 +88,12 @@ def render_timeline(entries: list[dict]) -> list[str]:
     by_min: OrderedDict[str, list[dict]] = OrderedDict()
     for e in entries:
         by_min.setdefault(e["hhmm"], []).append(e)
-    return [f"- {hhmm}  {_summarize_minute(es)}" for hhmm, es in by_min.items()]
+    out: list[str] = []
+    for hhmm, es in by_min.items():
+        summary = _summarize_minute(es)
+        if summary:
+            out.append(f"- {hhmm}  {summary}")
+    return out
 
 
 def list_logs_for_date(date: _dt.date) -> list[pathlib.Path]:

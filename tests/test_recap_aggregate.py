@@ -419,6 +419,58 @@ def test_render_timeline_marks_file_tool_errors():
     assert render_timeline(entries) == ["- 12:00  Edit a.py [err]"]
 
 
+# --- timeline filter (deterministic noise reduction) -------------------------
+
+
+def _entries(*rows):
+    # rows: (hhmm, tool, target)
+    return [{"hhmm": h, "tool": t, "target": g, "status": None} for h, t, g in rows]
+
+
+def test_structured_output_dropped():
+    out = render_timeline(_entries(
+        ("11:00", "StructuredOutput", ""),
+        ("11:00", "StructuredOutput", ""),
+        ("11:00", "Bash", "ls"),
+    ))
+    assert out == ["- 11:00  Bash: ls"]
+
+
+def test_web_calls_collapsed():
+    out = render_timeline(_entries(
+        ("11:00", "WebSearch", "q1"),
+        ("11:00", "WebFetch", "https://a"),
+        ("11:00", "WebFetch", "https://b"),
+    ))
+    assert out == ["- 11:00  Web×3"]
+
+
+def test_readonly_nav_collapsed_by_tool():
+    out = render_timeline(_entries(
+        ("11:00", "Read", "a.py"),
+        ("11:00", "Read", "b.py"),
+        ("11:00", "Grep", "foo"),
+    ))
+    assert out == ["- 11:00  Grep×1, Read×2"]
+
+
+def test_minute_with_only_noise_is_skipped():
+    out = render_timeline(_entries(
+        ("11:00", "StructuredOutput", ""),
+        ("11:01", "Edit", "a.py"),
+    ))
+    assert out == ["- 11:01  Edit a.py"]
+
+
+def test_bash_agent_edit_preserved():
+    out = render_timeline(_entries(
+        ("11:00", "Edit", "a.py"),
+        ("11:00", "Bash", "git status"),
+        ("11:00", "Agent", "Explore:look around"),
+    ))
+    assert out == ["- 11:00  Edit a.py, Bash: git status, Agent→Explore"]
+
+
 # --- --json mode -------------------------------------------------------------
 
 

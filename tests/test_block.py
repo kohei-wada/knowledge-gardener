@@ -210,6 +210,16 @@ def test_extract_timeline_bullets_absent_returns_none():
     assert extract_timeline_bullets("### KPT\n- Keep: x\n") is None
 
 
+def test_extract_timeline_bullets_empty_section_with_blank_line():
+    assert extract_timeline_bullets("### Timeline\n\n### KPT\n- Keep: x") == []
+
+
+def test_extract_timeline_bullets_empty_section_no_blank_line():
+    # malformed LLM output: empty Timeline directly followed by KPT, no blank line.
+    # Must NOT leak KPT lines into the timeline.
+    assert extract_timeline_bullets("### Timeline\n### KPT\n- Keep: x") == []
+
+
 def test_timeline_replace_discards_old_bullets():
     # Under replace semantics, old bullets (including hand-edited ones) are gone
     # after a new upsert — only the incoming timeline_bullets survive.

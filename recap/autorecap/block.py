@@ -16,7 +16,7 @@ _HEADER_RE = re.compile(r"^##[ \t]+Session[ \t]+(\d{2}:\d{2})[ \t]*[〜~][ \t]*(
 _KPT_RE = re.compile(r"^### KPT[ \t]*\n.*?(?=\n## |\n<!-- /kg-recap-sid:|\Z)", re.DOTALL | re.MULTILINE)
 _TIMELINE_RE = re.compile(r"(^### Timeline[ \t]*\n)(.*?)(?=\n### |\n## |\n<!-- /kg-recap-sid:|\Z)", re.DOTALL | re.MULTILINE)
 _TIMELINE_SECTION_RE = re.compile(
-    r"^### Timeline[ \t]*\n.*?(?=\n### |\n## |\n<!-- /kg-recap-sid:|\Z)",
+    r"^### Timeline[ \t]*\n.*?(?=^### |^## |^<!-- /kg-recap-sid:|\Z)",
     re.DOTALL | re.MULTILINE,
 )
 

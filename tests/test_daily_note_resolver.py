@@ -166,6 +166,23 @@ def test_daily_note_apply_block_noop_when_identical(tmp_path):
     assert _apply(note) is False
 
 
+def test_daily_note_apply_block_cleans_tmp_on_replace_failure(tmp_path, monkeypatch):
+    vault = tmp_path / "vault"
+    folder = vault / "04_DailyNotes"
+    folder.mkdir(parents=True)
+    daily_path = folder / "2026-05-29.md"
+    note = daily_note.DailyNote(vault, daily_path)
+
+    def boom(src, dst):
+        raise OSError("cross-device move")
+
+    monkeypatch.setattr(daily_note.os, "replace", boom)
+    assert _apply(note) is False
+    assert not daily_path.exists()
+    # the temp file must not be left behind in the vault
+    assert list(folder.glob("*.tmp")) == []
+
+
 def test_daily_note_has_repo_false_when_no_git(tmp_path):
     vault = tmp_path / "vault"
     vault.mkdir()

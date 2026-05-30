@@ -110,13 +110,17 @@ class DailyNote:
         )
         if new == existing:
             return False
+        tmp = self._daily_path.with_suffix(self._daily_path.suffix + ".tmp")
         try:
             self._daily_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self._daily_path.with_suffix(self._daily_path.suffix + ".tmp")
             tmp.write_text(new, encoding="utf-8")
             os.replace(tmp, self._daily_path)  # atomic
         except OSError as e:
             log(f"daily write failed: {e!r}")
+            try:
+                tmp.unlink(missing_ok=True)  # don't leave an orphaned .tmp in the vault
+            except OSError:
+                pass
             return False
         return True
 

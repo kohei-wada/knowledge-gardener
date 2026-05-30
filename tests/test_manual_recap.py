@@ -155,7 +155,7 @@ def test_authored_timeline_file_overrides_mechanical(tmp_path, monkeypatch):
     assert rc == 0
     content = daily.read_text(encoding="utf-8")
     assert "- 09:00–09:10 設計" in content
-    assert "tool=" not in content
+    assert "Bash: git commit" not in content   # deterministic bullet replaced by authored timeline
 
 
 def test_no_timeline_file_falls_back_to_deterministic(tmp_path, monkeypatch):

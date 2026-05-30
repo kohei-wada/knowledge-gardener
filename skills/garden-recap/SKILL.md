@@ -133,7 +133,7 @@ PYTHONPATH="${CLAUDE_PLUGIN_ROOT}" python3 -m recap.manual_recap \
   --kpt-file "$KPT_FILE" --timeline-file "$TIMELINE_FILE"
 ```
 
-The CLI writes the two-layer block atomically (Timeline from `$TIMELINE_FILE`, KPT replace), derives the topic from the KPT's first `Keep:` bullet, commits (`water: <date> <HH:MM> 〜 <topic>`), and advances the per-session cursor — so a later auto `Stop` inherits this KPT as prior-KPT instead of overwriting it.
+The CLI writes the two-layer block atomically (Timeline from `$TIMELINE_FILE`, KPT replace), derives the topic from the KPT's first `Keep:` bullet, commits (`water: <date> <HH:MM> 〜 <topic>`), and advances the per-session cursor — so a later auto `Stop` inherits this KPT as prior-KPT instead of overwriting it. (`--timeline-file` is optional; omitting it falls back to the deterministic filtered timeline aggregated from the capture log, as described in Step 3.)
 
 Don't `--no-verify` and don't hand-edit the block afterward. If you need a different insertion point for a brand-new block, pass `--insert-before <heading>` (default appends at EOF); to write without committing, pass `--no-commit`.
 

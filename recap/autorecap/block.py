@@ -12,7 +12,7 @@ def _close_re(sid8: str) -> re.Pattern:
     return re.compile(rf"<!--\s*/kg-recap-sid:{re.escape(sid8)}(?![-\w])\s*-->", re.IGNORECASE)
 
 
-_HEADER_RE = re.compile(r"^##\s+Session\s+(\d{2}:\d{2})\s*[〜~]\s*(\d{2}:\d{2})\s*(.*?)\s*$", re.MULTILINE)
+_HEADER_RE = re.compile(r"^##[ \t]+Session[ \t]+(\d{2}:\d{2})[ \t]*[〜~][ \t]*(\d{2}:\d{2})[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 _KPT_RE = re.compile(r"^### KPT[ \t]*\n.*?(?=\n## |\n<!-- /kg-recap-sid:|\Z)", re.DOTALL | re.MULTILINE)
 _TIMELINE_RE = re.compile(r"(^### Timeline[ \t]*\n)(.*?)(?=\n### |\n## |\n<!-- /kg-recap-sid:|\Z)", re.DOTALL | re.MULTILINE)
 

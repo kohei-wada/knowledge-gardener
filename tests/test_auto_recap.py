@@ -591,6 +591,36 @@ def test_two_stops_coalesce_into_one_block(tmp_path):
     assert (sessions / f"{sid8}.cursor").read_text().strip() == "10:30"
 
 
+def test_topicless_then_substantive_keeps_timeline(tmp_path):
+    vault, daily, _ = make_vault(tmp_path)
+    state = tmp_path / "state"
+    sid8 = "topicles"
+    today = _dt.date.today()
+    # warm path needs folder + filename resolved
+    env_common = {"KG_DAILY_FILENAME": f"{today.isoformat()}.md"}
+    # Stop 1: non-substantive (2 read-only calls) → Timeline-only, no topic, no claude
+    write_session_log(state, sid8, ["09:00 tool=mcp__Notion__notion-fetch target=x",
+                                    "09:00 tool=WebSearch target=y"])
+    fake1 = make_fake_claude(tmp_path / "f1", "### KPT\n- Keep: NOPE\n- Problem: -\n- Try: -\n")
+    run_hook({"session_id": sid8 + "-uuid"},
+             env_extra={**happy_env(vault, fake1), **env_common}, state_home=state)
+    note = daily / f"{today.isoformat()}.md"
+    assert "### Timeline" in note.read_text()
+    # Stop 2: substantive (Edit) → KPT + topic; must NOT eat the Timeline heading
+    sessions = state / "knowledge-gardener" / "sessions"
+    with (sessions / f"{today.isoformat()}-{sid8}.log").open("a") as fh:
+        fh.write("10:00 tool=Edit target=a.md\n")
+    (sessions / f".last-recap-{sid8}").unlink(missing_ok=True)
+    fake2 = make_fake_claude(tmp_path / "f2", _canned_kpt_only())
+    run_hook({"session_id": sid8 + "-uuid"},
+             env_extra={**happy_env(vault, fake2), **env_common}, state_home=state)
+    text = note.read_text()
+    assert "### Timeline" in text                 # heading survived the update
+    assert "- 09:00" in text                      # first Stop's bullet preserved
+    assert "- 10:00  Edit a.md" in text           # second Stop's bullet appended
+    assert text.count(f"<!-- kg-recap-sid:{sid8} -->") == 1
+
+
 def test_nonsubstantive_stop_appends_timeline_without_calling_claude(tmp_path):
     vault, daily, _ = make_vault(tmp_path)
     state = tmp_path / "state"

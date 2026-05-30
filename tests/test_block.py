@@ -107,6 +107,27 @@ def test_upsert_is_byte_idempotent_on_identical_reapply():
     assert once == twice == thrice  # fixed point — re-applying identical inputs changes nothing
 
 
+def test_update_topicless_block_keeps_timeline_heading():
+    # First write: NO topic (the common non-substantive first-Stop case), no KPT.
+    first = upsert_session_block(
+        "", "abc12345", start_hhmm="09:00", end_hhmm="09:30", topic="",
+        timeline_bullets=["- 09:00  MCP Notion×1"], kpt_section=None,
+    )
+    assert "## Session 09:00〜09:30" in first
+    assert "### Timeline" in first
+    # Second write: substantive update adds a topic + KPT.
+    second = upsert_session_block(
+        first, "abc12345", start_hhmm="09:00", end_hhmm="10:00", topic="recap work",
+        timeline_bullets=["- 10:00  Edit a.py"], kpt_section=KPT1,
+    )
+    assert "### Timeline" in second              # heading MUST survive
+    assert "- 09:00  MCP Notion×1" in second     # prior bullet preserved
+    assert "- 10:00  Edit a.py" in second        # new bullet appended
+    assert second.index("### Timeline") < second.index("- 09:00  MCP Notion×1")  # bullets under heading
+    assert "## Session 09:00〜10:00  recap work" in second
+    assert "### KPT" in second
+
+
 def test_extract_kpt_section():
     llm = "### KPT\n- Keep: x\n- Problem: y\n- Try: z\n"
     assert extract_kpt_section(llm).startswith("### KPT")

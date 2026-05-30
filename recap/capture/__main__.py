@@ -69,7 +69,7 @@ def _compose_target(tool_name: str, tool_input: dict) -> str:
         fp = tool_input.get("file_path") or "?"
         return _short_path(fp) if fp != "?" else "?"
     if tool_name == "Bash":
-        cmd = (tool_input.get("command") or "").strip()
+        cmd = _strip_cd_prefix((tool_input.get("command") or "").strip())
         return _truncate(cmd) if cmd else "?"
     if tool_name == "Agent":
         subagent = tool_input.get("subagent_type") or "general-purpose"
@@ -108,16 +108,16 @@ def _status(tool_response: dict) -> str | None:
     return None
 
 
-def _bash_head(command: str) -> str:
-    """Pick the verb that decides triviality, skipping leading `cd <dir> &&` wrappers."""
+def _strip_cd_prefix(command: str) -> str:
+    """Drop leading `cd <dir> &&` / `cd <dir> ;` wrappers so the meaningful
+    command — not the long repo path — is what gets stored and shown. A bare
+    `cd <dir>` with nothing after is kept as-is."""
     s = command.strip()
     while s.startswith("cd "):
-        # drop "cd <token> [&&]" prefix
         rest = s[3:].lstrip()
-        # split off the directory token
         parts = rest.split(None, 1)
         if len(parts) < 2:
-            return ""
+            return s
         tail = parts[1].lstrip()
         if tail.startswith("&&"):
             s = tail[2:].lstrip()
@@ -126,6 +126,12 @@ def _bash_head(command: str) -> str:
             s = tail[1:].lstrip()
             continue
         break
+    return s
+
+
+def _bash_head(command: str) -> str:
+    """Pick the verb that decides triviality, skipping leading `cd <dir> &&` wrappers."""
+    s = _strip_cd_prefix(command)
     return s.split(None, 1)[0] if s else ""
 
 

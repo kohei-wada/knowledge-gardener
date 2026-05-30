@@ -296,3 +296,25 @@ def test_newline_in_target_replaced(tmp_path):
     # One log entry, no embedded newline
     assert log.count("\n") == 1
     assert "␤" in log
+
+
+def test_bash_cd_prefix_stripped_so_real_command_survives(tmp_path):
+    # A long `cd <repo path> &&` prefix must not eat the 80-char truncation
+    # budget — the stored target is the meaningful command, not the path.
+    long_path = "/home/kohei/ghq/github.com/Kohei-Wada/knowledge-gardener"
+    cmd = f"cd {long_path} && gh issue list --state open --limit 50"
+    _, _, log_dir = run_capture(
+        {"session_id": "testsess", "tool_name": "Bash", "tool_input": {"command": cmd}},
+        tmp_path=tmp_path,
+    )
+    line = read_today_log(log_dir)
+    assert "target=gh issue list --state open" in line
+    assert long_path not in line
+
+
+def test_bash_without_cd_prefix_unchanged(tmp_path):
+    _, _, log_dir = run_capture(
+        {"session_id": "testsess", "tool_name": "Bash", "tool_input": {"command": "git commit -m x"}},
+        tmp_path=tmp_path,
+    )
+    assert "target=git commit -m x" in read_today_log(log_dir)

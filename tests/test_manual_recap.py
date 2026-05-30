@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+import contextlib
+import datetime as _dt
+import io
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from recap.manual_recap.__main__ import main
+
+KPT = "### KPT\n\n- Keep: 手動でまとめた\n- Problem: (なし)\n- Try: 次回も green\n"
+
+
+def _sessions(state: Path) -> Path:
+    d = state / "knowledge-gardener" / "sessions"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _write_log(state: Path, sid: str, lines: list[str]) -> Path:
+    today = _dt.date.today().isoformat()
+    p = _sessions(state) / f"{today}-{sid}.log"
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return p
+
+
+def _setup(tmp_path: Path, monkeypatch, *, git: bool = False) -> tuple[Path, Path, Path]:
+    vault = tmp_path / "vault"
+    daily_folder = vault / "04_DailyNotes"
+    daily_folder.mkdir(parents=True)
+    daily_path = daily_folder / f"{_dt.date.today().isoformat()}.md"
+    state = tmp_path / "state"
+    monkeypatch.setenv("KG_VAULT", str(vault))
+    monkeypatch.setenv("XDG_STATE_HOME", str(state))
+    if git:
+        for cmd in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"]):
+            subprocess.run(["git", *cmd], cwd=vault, check=True)
+        (vault / ".gitkeep").write_text("")
+        subprocess.run(["git", "add", "-A"], cwd=vault, check=True)
+        subprocess.run(["git", "commit", "-qm", "init"], cwd=vault, check=True)
+    return vault, daily_path, state
+
+
+def _kpt_file(tmp_path: Path, body: str = KPT) -> Path:
+    p = tmp_path / "kpt.md"
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+def test_create_block_when_absent(tmp_path, monkeypatch):
+    vault, daily, state = _setup(tmp_path, monkeypatch)
+    _write_log(state, "manual01", ["09:00 tool=Edit target=a.md", "09:05 tool=Bash target=git commit -m x"])
+    rc = main(["--sid", "manual01", "--daily-path", str(daily),
+               "--kpt-file", str(_kpt_file(tmp_path)), "--no-commit"])
+    assert rc == 0
+    text = daily.read_text()
+    assert "<!-- kg-recap-sid:manual01 -->" in text
+    assert "### Timeline" in text
+    assert "- 09:00  Edit a.md" in text
+    assert "Keep: 手動でまとめた" in text
+    assert (state / "knowledge-gardener" / "sessions" / "manual01.cursor").read_text().strip() == "09:05"
+
+
+def test_updates_existing_auto_block_coalescing(tmp_path, monkeypatch):
+    vault, daily, state = _setup(tmp_path, monkeypatch)
+    daily.write_text(
+        "<!-- kg-recap-sid:manual01 -->\n"
+        "## Session 09:00〜09:00  auto topic\n\n"
+        "### Timeline\n- 09:00  Edit a.md\n\n"
+        "### KPT\n- Keep: auto が書いた\n<!-- /kg-recap-sid:manual01 -->\n",
+        encoding="utf-8",
+    )
+    _write_log(state, "manual01", ["09:00 tool=Edit target=a.md", "09:30 tool=Write target=b.md"])
+    rc = main(["--sid", "manual01", "--daily-path", str(daily),
+               "--kpt-file", str(_kpt_file(tmp_path)), "--no-commit"])
+    assert rc == 0
+    text = daily.read_text()
+    assert text.count("<!-- kg-recap-sid:manual01 -->") == 1
+    assert "- 09:00  Edit a.md" in text
+    assert "- 09:30  Write b.md" in text
+    assert "Keep: 手動でまとめた" in text and "Keep: auto が書いた" not in text
+    assert "## Session 09:00〜09:30  手動でまとめた" in text
+
+
+def test_dry_run_writes_nothing(tmp_path, monkeypatch):
+    vault, daily, state = _setup(tmp_path, monkeypatch)
+    _write_log(state, "manual01", ["09:00 tool=Edit target=a.md"])
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(["--sid", "manual01", "--daily-path", str(daily),
+                   "--kpt-file", str(_kpt_file(tmp_path)), "--dry-run"])
+    assert rc == 0
+    out = buf.getvalue()
+    assert "kg-recap-sid:manual01" in out
+    assert "### Timeline" in out
+    assert not daily.exists()
+    assert not (state / "knowledge-gardener" / "sessions" / "manual01.cursor").exists()
+
+
+def test_empty_session_returns_nonzero(tmp_path, monkeypatch):
+    vault, daily, state = _setup(tmp_path, monkeypatch)
+    rc = main(["--sid", "nolog999", "--daily-path", str(daily),
+               "--kpt-file", str(_kpt_file(tmp_path)), "--no-commit"])
+    assert rc == 3
+    assert not daily.exists()
+
+
+def test_legacy_hhmm_block_not_collided(tmp_path, monkeypatch):
+    vault, daily, state = _setup(tmp_path, monkeypatch)
+    daily.write_text(
+        "<!-- kg-recap-sid:manual01-1400 -->\n## Session 14:00 〜 legacy\nbody\n"
+        "<!-- /kg-recap-sid:manual01-1400 -->\n",
+        encoding="utf-8",
+    )
+    _write_log(state, "manual01", ["09:00 tool=Edit target=a.md"])
+    rc = main(["--sid", "manual01", "--daily-path", str(daily),
+               "--kpt-file", str(_kpt_file(tmp_path)), "--no-commit"])
+    assert rc == 0
+    text = daily.read_text()
+    assert "kg-recap-sid:manual01-1400" in text
+    assert text.count("<!-- kg-recap-sid:manual01 -->") == 1
+
+
+def test_no_kg_vault_returns_usage_error(tmp_path, monkeypatch):
+    vault, daily, state = _setup(tmp_path, monkeypatch)
+    monkeypatch.delenv("KG_VAULT", raising=False)
+    _write_log(state, "manual01", ["09:00 tool=Edit target=a.md"])
+    rc = main(["--sid", "manual01", "--daily-path", str(daily),
+               "--kpt-file", str(_kpt_file(tmp_path)), "--no-commit"])
+    assert rc == 2
+
+
+def test_commits_when_repo_and_not_no_commit(tmp_path, monkeypatch):
+    vault, daily, state = _setup(tmp_path, monkeypatch, git=True)
+    monkeypatch.setenv("KG_AUTO_RECAP_NO_PUSH", "1")
+    _write_log(state, "manual01", ["09:00 tool=Edit target=a.md"])
+    rc = main(["--sid", "manual01", "--daily-path", str(daily),
+               "--kpt-file", str(_kpt_file(tmp_path))])
+    assert rc == 0
+    subj = subprocess.run(["git", "log", "-1", "--pretty=%s"], cwd=vault,
+                          capture_output=True, text=True, check=True).stdout.strip()
+    assert subj.startswith("water:") and "手動でまとめた" in subj

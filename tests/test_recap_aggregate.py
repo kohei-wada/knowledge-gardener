@@ -451,7 +451,7 @@ def test_readonly_nav_collapsed_by_tool():
         ("11:00", "Read", "b.py"),
         ("11:00", "Grep", "foo"),
     ))
-    assert out == ["- 11:00  Grep×1, Read×2"]
+    assert out == ["- 11:00  Grep, Read×2"]
 
 
 def test_minute_with_only_noise_is_skipped():

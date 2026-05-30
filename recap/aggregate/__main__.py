@@ -53,6 +53,8 @@ def _summarize_minute(entries: list[dict]) -> str:
     for e in entries:
         tool, target = e["tool"], (e["target"] or "?")
         err = " [err]" if e["status"] == "err" else ""
+        # err is propagated only for itemized tools (Bash/Agent/file edits);
+        # collapsed-count tools (Web/nav/misc) omit it — totals live in the aggregate `errors` count.
         if tool in NOISE_TOOLS:
             continue
         if tool in FILE_TOOLS:
@@ -79,7 +81,9 @@ def _summarize_minute(entries: list[dict]) -> str:
     chunks.extend(rest)
     if web:
         chunks.append(f"Web×{web}")
-    chunks.extend(f"{tool}×{n}" for tool, n in sorted(misc.items()))
+    chunks.extend(
+        (f"{tool}×{n}" if n > 1 else tool) for tool, n in sorted(misc.items())
+    )
     chunks.extend(f"MCP {server}×{n}" for server, n in sorted(mcp.items()))
     return ", ".join(chunks)
 
